@@ -11,11 +11,15 @@ Geprüft wird:
   - Links: Text zeigt A, Link führt zu B; IP-Adressen; Kurz-URLs; Punycode
   - Anhänge: ausführbare Dateien, Doppelendungen, Makros, HTML/SVG, Archive
   - Inhalt: IBAN + Wörter wie «neue Bankverbindung», «dringend», «vertraulich»
+  - Massen-Betrugsmuster: «Re:» ohne vorherige E-Mail, Anrede mit der eigenen Adresse,
+    Anzeigename passt nicht zur Freemail-Adresse, fast leerer Text. Einzeln schwach,
+    zusammen (ab 3 Signalen) ein deutliches Muster – auch wenn DMARC bestanden ist.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email import policy
@@ -51,6 +55,23 @@ URL_MUSTER = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
 DOMAIN_IM_TEXT = re.compile(r"^(?:https?://)?([a-z0-9.-]+\.[a-z]{2,})(?:[/:?#]|$)", re.IGNORECASE)
 IP_HOST = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
+# Kostenlose Mailanbieter: jeder kann dort in einer Minute ein Konto anlegen – DMARC besteht trotzdem.
+FREEMAIL = {"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.ch", "hotmail.de",
+            "live.com", "msn.com", "yahoo.com", "yahoo.de", "yahoo.fr", "ymail.com", "aol.com",
+            "icloud.com", "me.com", "gmx.ch", "gmx.de", "gmx.net", "gmx.at", "web.de", "bluewin.ch",
+            "proton.me", "protonmail.com", "mail.ru", "yandex.ru", "yandex.com", "mail.com", "zoho.com"}
+# Antwort-Präfixe (DE/EN/FR/IT/ES/Skandinavisch). Weiterleitungen (WG:/Fwd:) absichtlich NICHT:
+# dort fehlt In-Reply-To oft auch bei echten E-Mails.
+ANTWORT_PRAEFIX = re.compile(r"^\s*(?:re|aw|antw|antwort|sv|rif|r|ref|réf)\s*(?:\[\d+\])?\s*:", re.IGNORECASE)
+KURZER_TEXT = 120        # Zeichen sichtbarer Text
+MUSTER_SCHWELLE = 3      # ab so vielen Signalen (davon mind. 2 starke): Warnung
+STARKE_SIGNALE = {"RE-OHNE-BEZUG", "ANREDE-LOKALTEIL", "NAME-PASST-NICHT"}
+# Funktionsadressen: «Sehr geehrte Buchhaltung» an buchhaltung@… ist normal, kein Signal.
+ROLLEN = {"buchhaltung", "rechnung", "rechnungen", "kontakt", "info", "office", "admin", "support",
+          "service", "verkauf", "einkauf", "empfang", "sekretariat", "personal", "bewerbung",
+          "bewerbungen", "contact", "accounting", "invoice", "invoices", "sales", "hello", "team",
+          "kundendienst", "verwaltung", "geschaeftsleitung", "direktion", "postmaster", "webmaster"}
+
 
 @dataclass
 class MailErgebnis:
@@ -65,6 +86,10 @@ class MailErgebnis:
         if schlimmster >= Status.KRITISCH:
             return Status.KRITISCH, ("GEFÄHRLICH. Nicht antworten, nichts anklicken, nichts öffnen, "
                                      "nichts zahlen. Informieren Sie Ihren Informatiker.")
+        warnungen = {b.id for b in self.befunde if b.status == Status.WARNUNG}
+        if warnungen == {"MAIL-MASSENBETRUG-MUSTER"}:
+            return Status.WARNUNG, ("VERDÄCHTIG: typisches Spam-/Betrugsmuster. Nicht antworten, "
+                                    "nichts anklicken – als Spam melden und löschen.")
         if schlimmster >= Status.WARNUNG:
             return Status.WARNUNG, ("VERDÄCHTIG. Vor jeder Zahlung, jedem Klick oder jeder Eingabe: "
                                     "Absender anrufen – mit der Nummer, die Sie schon kennen.")
@@ -152,6 +177,52 @@ def _auth_results(msg: EmailMessage) -> dict[str, str]:
     if m:
         erg["header.from"] = m.group(1)
     return erg
+
+
+def _ohne_akzente(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(c))
+
+
+def _name_passt_zur_adresse(name: str, adresse: str) -> bool:
+    """«Peter Muster <p.muster@gmail.com>» passt, «Mary <xyzabcdefg@gmail.com>» nicht.
+    Ein Namensteil (ab 3 Buchstaben) muss mit seinen ersten 3–4 Buchstaben im lokalen Teil vorkommen."""
+    lokal = re.sub(r"[^a-z]", "", _ohne_akzente(adresse.split("@", 1)[0]))
+    teile = [t for t in re.split(r"[^a-z]+", _ohne_akzente(name)) if len(t) >= 3]
+    if not teile or not lokal:
+        return True                     # nichts zu vergleichen → kein Signal
+    return any(t[:4] in lokal or (len(t) == 3 and t in lokal) for t in teile)
+
+
+def _betrugsmuster(msg: EmailMessage, betreff: str, name: str, von: str, von_domain: str,
+                   klar: str, html: str, hat_links: bool) -> list[tuple[str, str]]:
+    """Signale für Massen-Betrug (Romance-/Vorschuss-Scam, «Adresse aktiv?»-Tests).
+    Gibt (Kürzel, Erklärung) zurück. Jedes Signal allein ist schwach."""
+    signale = []
+    if ANTWORT_PRAEFIX.match(betreff) and not msg.get("In-Reply-To") and not msg.get("References"):
+        signale.append(("RE-OHNE-BEZUG", f"Betreff «{betreff[:60]}» tut so, als wäre es eine Antwort – "
+                        "aber es gibt keine vorherige E-Mail (In-Reply-To/References fehlen)."))
+    empfaenger = [a for _, a in getaddresses([str(h) for h in (msg.get_all("To", []) or [])
+                                              + (msg.get_all("Delivered-To", []) or [])]) if "@" in a]
+    sichtbar = (betreff + "\n" + (klar or re.sub(r"<[^>]+>", " ", html))[:300]).lower()
+    for adr in empfaenger:
+        lokal = adr.split("@", 1)[0].lower()
+        if lokal in ROLLEN:
+            continue
+        if len(lokal) >= 8 and re.search(rf"(?<![a-z0-9]){re.escape(lokal)}(?![a-z0-9@])", sichtbar):
+            signale.append(("ANREDE-LOKALTEIL", f"Sie werden mit Ihrer E-Mail-Adresse angesprochen "
+                            f"(«{lokal}») statt mit Ihrem Namen – typisch für automatische Massen-E-Mails."))
+            break
+    freemail = von_domain in FREEMAIL
+    if freemail:
+        signale.append(("FREEMAIL", f"Absender ist ein kostenloses Konto ({von_domain}) – "
+                        "jeder kann so eines in einer Minute anlegen."))
+    if freemail and name and "@" not in name and not _name_passt_zur_adresse(name, von):
+        signale.append(("NAME-PASST-NICHT", f"Der Anzeigename «{name}» passt nicht zur Adresse {von}."))
+    text = re.sub(r"\s+", " ", klar or re.sub(r"<[^>]+>", " ", html)).strip()
+    if len(text) < KURZER_TEXT and not hat_links and not any(t.get_filename() for t in msg.walk()):
+        signale.append(("FAST-LEER", f"Fast kein Inhalt ({len(text)} Zeichen), kein Link, kein Anhang – "
+                        "Ziel ist oft nur, dass Sie antworten."))
+    return signale
 
 
 def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = None,
@@ -318,6 +389,22 @@ def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = 
             b(Befund("MAIL-ANHANG-ARCHIV", "Anhänge", Status.WARNUNG,
                      f"Archiv-Anhang: «{dateiname}» – kann Schadsoftware verstecken.", "",
                      "Nur öffnen, wenn Sie die Datei erwartet haben (Rückfrage beim Absender)."))
+
+    # 5b. Massen-Betrugsmuster (gerade dann wichtig, wenn DMARC «pass» sagt)
+    signale = _betrugsmuster(msg, erg.betreff, name, von, von_domain, klar, html, bool(hosts))
+    anzahl_stark = sum(k in STARKE_SIGNALE for k, _ in signale)
+    if len(signale) >= MUSTER_SCHWELLE and anzahl_stark >= 2:
+        b(Befund("MAIL-MASSENBETRUG-MUSTER", "Betrugsmuster", Status.WARNUNG,
+                 f"Typisches Muster von Spam/Betrug: {len(signale)} Signale gleichzeitig.",
+                 "\n".join(f"– {e}" for _, e in signale),
+                 "NICHT antworten – eine Antwort bestätigt nur, dass Ihre Adresse aktiv ist. "
+                 "Als Spam/Phishing melden und löschen. Achtung: Die Prüfung «DMARC bestanden» heisst "
+                 "hier nur, dass das (Gratis-)Konto echt ist – nicht, dass die Person vertrauenswürdig ist.",
+                 daten={"signale": [k for k, _ in signale]}))
+    else:                       # kein Gesamtmuster: starke Signale einzeln als Hinweis zeigen
+        for kuerzel, erklaerung in signale:
+            if kuerzel in STARKE_SIGNALE:
+                b(Befund(f"MAIL-{kuerzel}", "Betrugsmuster", Status.HINWEIS, erklaerung))
 
     # 6. Inhalt: IBAN + Druck
     text = (erg.betreff + "\n" + klar + "\n" + re.sub(r"<[^>]+>", " ", html)).lower()

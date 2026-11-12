@@ -39,6 +39,14 @@ Gedacht für KMU und für IT-Dienstleister, die KMU betreuen.
 | Subdomains | Zeigt eine Subdomain auf einen gekündigten Dienst (Subdomain-Takeover)? |
 | Ähnliche Domains | Hat jemand «mu5ter-ag.ch», «müster-ag.ch» oder «muster-ag.com» mit E-Mail registriert? |
 
+### E-Mail-Prüfung («Ist diese E-Mail echt?»)
+
+Echtheit (SPF/DKIM/DMARC), Absender (Reply-To, ähnliche Domains), Links, Anhänge, IBAN-Wechsel –
+und **Massen-Betrugsmuster**: «Re:» ohne vorherige E-Mail, Anrede mit Ihrer E-Mail-Adresse,
+Anzeigename passt nicht zur Gratis-Adresse, fast leerer Text. Wichtig, weil solche E-Mails von
+echten Gmail-/Outlook-Konten kommen und **DMARC deshalb besteht**. Erst ab mehreren starken
+Signalen gibt es eine Warnung (wenig Fehlalarme).
+
 **Korrekturen zum Kopieren:** pruefstand sagt nicht nur «DMARC fehlt», sondern liefert den
 fertigen Eintrag – passend zum erkannten Anbieter, bei riskanten Änderungen in Phasen
 (DMARC none → quarantine → reject, MTA-STS testing → enforce), mit Platzhaltern `<…>` nur

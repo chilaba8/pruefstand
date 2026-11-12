@@ -735,6 +735,67 @@ def test_mail_ohne_auth_header():
     assert "MAIL-KEINE-AUTH" in _mids(_mail(auth=None))[0]
 
 
+def _roh(von, an, betreff, text, **kopf):
+    m = _Mail()
+    m["Authentication-Results"] = ("mx.google.com; spf=pass smtp.mailfrom=" + von.split("<")[-1].strip(">")
+                                   + "; dkim=pass; dmarc=pass header.from=gmail.com")
+    m["From"], m["To"], m["Subject"] = von, an, betreff
+    for k, v in kopf.items():
+        m[k.replace("_", "-")] = v
+    m.set_content(text)
+    return bytes(m)
+
+
+def test_mail_massenbetrug_trotz_dmarc_pass():
+    """Echter Fall (anonymisiert): DMARC besteht, trotzdem Spam – 5 Signale."""
+    roh = _roh("Mary <xyzabcdefg@gmail.com>", "petermuster@beispiel.ch", "Re:Petermuster",
+               "Petermuster, heya!\nThat's me!")
+    erg = mailpruefung.pruefe_mail(roh, "t.eml")
+    ids_ = {b.id for b in erg.befunde}
+    assert {"MAIL-DMARC-PASS", "MAIL-MASSENBETRUG-MUSTER"} <= ids_
+    muster = next(b for b in erg.befunde if b.id == "MAIL-MASSENBETRUG-MUSTER")
+    assert set(muster.daten["signale"]) == {"RE-OHNE-BEZUG", "ANREDE-LOKALTEIL", "FREEMAIL",
+                                            "NAME-PASST-NICHT", "FAST-LEER"}
+    assert erg.urteil[0] == Status.WARNUNG and "Spam" in erg.urteil[1]
+    assert "MAIL-RE-OHNE-BEZUG" not in ids_          # keine doppelten Einzelhinweise
+
+
+def test_mail_echte_antwort_von_gmail_unauffaellig():
+    roh = _roh("Peter Muster <peter.muster@gmail.com>", "anna@beispiel.ch", "Re: Termin",
+               "Hallo Anna, passt mir. Bis morgen!", In_Reply_To="<abc@beispiel.ch>")
+    ids_, urteil = _mids(roh)
+    assert not any(i.startswith("MAIL-MASSENBETRUG") or i == "MAIL-RE-OHNE-BEZUG" for i in ids_)
+    assert urteil == Status.OK
+
+
+def test_mail_mama_mit_spitzname_kein_alarm():
+    """Bekannter Fehlalarm-Fall: Anzeigename passt nicht, aber nur 1 starkes Signal → keine Warnung."""
+    ids_, urteil = _mids(_roh("Mamá <xyz123@gmail.com>", "anna@beispiel.ch", "Ruf an", "Ruf mich an"))
+    assert "MAIL-MASSENBETRUG-MUSTER" not in ids_ and "MAIL-NAME-PASST-NICHT" in ids_
+    assert urteil == Status.OK
+
+
+def test_mail_funktionsadresse_ist_keine_lokalteil_anrede():
+    roh = _roh("Peter Muster <peter@muster-ag.ch>", "buchhaltung@kunde.ch", "Rechnung",
+               "Sehr geehrte Buchhaltung, anbei die Rechnung.")
+    assert "MAIL-ANREDE-LOKALTEIL" not in _mids(roh)[0]
+
+
+@pytest.mark.parametrize("name, adresse, passt", [
+    ("Peter Muster", "peter.muster@gmail.com", True), ("Peter Muster", "pmuster77@gmail.com", True),
+    ("José Núñez", "jose.nunez@gmail.com", True), ("Mary", "xyzabcdefg@gmail.com", False),
+    ("", "x@gmail.com", True),
+])
+def test_name_passt_zur_adresse(name, adresse, passt):
+    assert mailpruefung._name_passt_zur_adresse(name, adresse) is passt
+
+
+def test_weiterleitung_ohne_bezug_ist_kein_signal():
+    roh = _roh("Peter Muster <peter.muster@gmail.com>", "anna@beispiel.ch", "WG: Offerte",
+               "Zur Info, siehe unten. Gruss Peter")
+    assert "MAIL-RE-OHNE-BEZUG" not in _mids(roh)[0]
+
+
 def test_mail_zu_gross():
     with pytest.raises(ValueError):
         mailpruefung.pruefe_mail(b"x" * (mailpruefung.MAX_GROESSE + 1))
