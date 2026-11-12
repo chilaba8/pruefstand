@@ -130,6 +130,11 @@ def _parser() -> argparse.ArgumentParser:
     ueb.add_argument("--immer-melden", action="store_true",
                      help="auch melden, wenn sich nichts geändert hat")
 
+    ui = p.add_argument_group("lokale Web-Oberfläche")
+    ui.add_argument("--oberflaeche", action="store_true",
+                    help="Oberfläche im Browser starten (nur auf diesem PC: http://127.0.0.1:PORT)")
+    ui.add_argument("--port", type=int, default=8765, help="Port der Oberfläche (Standard: 8765)")
+
     marke = p.add_argument_group("eigenes Logo (für IT-Dienstleister)")
     marke.add_argument("--absender", metavar="NAME", help="Ihr Firmenname im Bericht")
     marke.add_argument("--logo", metavar="DATEI", help="Ihr Logo (PNG/JPG/SVG/WebP, max. 500 KB)")
@@ -143,10 +148,12 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     p = _parser()
     args = p.parse_args(argv)
-    modi = [m for m in (args.domain, args.liste, args.mail, args.dmarc_berichte) if m]
+    modi = [m for m in (args.domain, args.liste, args.mail, args.dmarc_berichte, args.oberflaeche) if m]
     if len(modi) != 1:
-        p.error("Bitte genau EINES angeben: eine Domain, --liste DATEI, --mail DATEI "
-                "oder --dmarc-berichte ORDNER.")
+        p.error("Bitte genau EINES angeben: eine Domain, --liste DATEI, --mail DATEI, "
+                "--dmarc-berichte ORDNER oder --oberflaeche.")
+    if args.oberflaeche:
+        return _oberflaeche(args)
     if args.mail:
         return _mail(args)
     if args.dmarc_berichte:
@@ -162,6 +169,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.liste:
         return _liste(dns, args, absender)
     return _einzeln(dns, args, absender)
+
+
+def _oberflaeche(args) -> int:
+    from pruefstand import oberflaeche
+
+    absender = Absender(args.absender, lade_logo(args.logo) if args.logo else None)
+
+    def domain_pruefen(eingabe: str, aehnliche_: bool, web_: bool) -> str:
+        a = _parser().parse_args(["x"])
+        a.ohne_aehnliche, a.ohne_web, a.sprache = not aehnliche_, not web_, args.sprache
+        a.dns, a.verlauf, a.ohne_verlauf = args.dns, args.verlauf, args.ohne_verlauf
+        try:
+            erg = _pruefe(Dns(args.dns), normalisiere(eingabe), a)
+        except DnsFehler as e:
+            raise ValueError(f"DNS-Fehler: {e}") from e
+        return bericht_html.erzeuge(erg, None, absender)
+
+    oberflaeche.starte(args.port, domain_pruefen)
+    return EXIT_OK
 
 
 def _mail(args) -> int:

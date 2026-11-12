@@ -227,3 +227,20 @@ def als_pdf(html: str, ziel: Path) -> None:
                         f"--user-data-dir={tmp}/profil", f"--print-to-pdf={ziel.resolve()}",
                         quelle.as_uri()],
                        check=True, capture_output=True, timeout=60)
+
+
+def mail_html(erg) -> str:
+    """HTML-Ergebnis der E-Mail-Prüfung (für die lokale Oberfläche)."""
+    status, satz = erg.urteil
+    zeilen = "".join(_befund_html(b) for b in sorted(erg.befunde, key=lambda x: -x.status)
+                     if b.status >= Status.HINWEIS or b.id == "MAIL-DMARC-PASS")
+    return f"""<!doctype html>
+<html lang="de-CH"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Mail-Prüfung</title><style>{CSS}</style></head><body><main>
+<h1>Ist diese E-Mail echt?</h1>
+<div class="meta">Von: {escape(erg.von)} · Betreff: {escape(erg.betreff)}</div>
+<div class="urteil {FARBE[status]}"><div class="antwort">{escape(satz)}</div></div>
+{zeilen or '<p>Keine Auffälligkeiten.</p>'}
+<footer>pruefstand {__version__} – lokal geprüft: kein Link geöffnet, kein Anhang ausgeführt.</footer>
+</main></body></html>"""

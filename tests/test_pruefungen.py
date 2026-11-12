@@ -1029,3 +1029,56 @@ def test_html_zeigt_note_und_normen():
     normen.ergaenze(erg)
     html = bericht_html.erzeuge(erg)
     assert "Note A" in html and "nDSG Art. 8" in html and "keine Rechtsberatung" in html
+
+
+# --- Lokale Oberfläche --------------------------------------------------------------------
+
+import threading  # noqa: E402
+import urllib.error  # noqa: E402
+import urllib.request  # noqa: E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+
+from pruefstand import oberflaeche  # noqa: E402
+
+
+@pytest.fixture
+def ui():
+    def domain_pruefen(d, aeh, web_):
+        return f"<html><main>OK {d} {aeh} {web_}</main></html>"
+    server = ThreadingHTTPServer(("127.0.0.1", 0), oberflaeche.baue_handler(0, "T0KEN", domain_pruefen))
+    port = server.server_address[1]
+    server.RequestHandlerClass = oberflaeche.baue_handler(port, "T0KEN", domain_pruefen)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield port
+    server.shutdown()
+
+
+def _post(port, pfad, daten, kopf=None):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{pfad}", data=daten, headers=kopf or {})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
+def test_ui_startseite_und_token(ui):
+    with urllib.request.urlopen(f"http://127.0.0.1:{ui}/", timeout=5) as r:
+        assert "T0KEN" in r.read().decode() and "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    assert _post(ui, "/domain", b"domain=muster-ag.ch&token=T0KEN&web=on")[1].count("OK muster-ag.ch False True") == 1
+    assert _post(ui, "/domain", b"domain=muster-ag.ch&token=falsch")[0] == 403
+
+
+def test_ui_fremder_host_und_origin(ui):
+    assert _post(ui, "/domain", b"domain=x.ch&token=T0KEN", {"Host": "boese.example"})[0] == 403
+    assert _post(ui, "/domain", b"domain=x.ch&token=T0KEN", {"Origin": "https://boese.example"})[0] == 403
+
+
+def test_ui_mail_upload(ui):
+    grenze = "XyZ"
+    teile = [f'--{grenze}\r\nContent-Disposition: form-data; name="token"\r\n\r\nT0KEN\r\n'.encode(),
+             f'--{grenze}\r\nContent-Disposition: form-data; name="datei"; filename="m.eml"\r\n'
+             f'Content-Type: message/rfc822\r\n\r\n'.encode() + _mail(anhang="x.pdf.exe") + b"\r\n",
+             f"--{grenze}--\r\n".encode()]
+    status, html = _post(ui, "/mail", b"".join(teile), {"Content-Type": f"multipart/form-data; boundary={grenze}"})
+    assert status == 200 and "GEFÄHRLICH" in html
