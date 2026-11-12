@@ -18,6 +18,7 @@ from pruefstand import __version__
 from pruefstand.absender import Absender
 from pruefstand.modell import Befund, Status
 from pruefstand.pruefung import Ergebnis
+from pruefstand import vergleich_ch
 
 FARBE = {Status.OK: "ok", Status.HINWEIS: "hinweis", Status.WARNUNG: "warnung",
          Status.KRITISCH: "kritisch", Status.INFO: "info"}
@@ -52,6 +53,9 @@ ol.todo { padding-left: 22px; } ol.todo li { margin-bottom: 10px; }
 ol.todo .was { color:var(--text); font-weight:600; }
 .aenderungen { background: var(--flaeche); border-radius: 6px; padding: 4px 18px 8px; margin: 18px 0; }
 .aenderungen h2 { margin-top: 12px; } .aenderungen li { margin-bottom: 4px; }
+table.vergleich { width:100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+table.vergleich th, table.vergleich td { text-align:left; padding: 5px 6px; border-bottom: 1px solid var(--linie); }
+table.vergleich th { font-size: 12.5px; color: var(--leise); }
 .regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
 .regel h2 { margin-top: 0; color: var(--kritisch); }
 .befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
@@ -162,6 +166,16 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
         h.append("</ol>")
     else:
         h.append("<p>Es gibt keine dringenden Punkte. Wiederholen Sie die Prüfung alle paar Monate.</p>")
+
+    zeilen = vergleich_ch.vergleiche(erg)
+    if zeilen:
+        h.append("<h2>Im Vergleich zur Schweiz</h2><table class='vergleich'><thead><tr><th>Schutz</th>"
+                 "<th>Ihre Domain</th><th>So viele .ch-Domains haben es</th></tr></thead><tbody>")
+        for z in zeilen:
+            sie = '<span class="ok">✔ ja</span>' if z.sie else '<span class="warnung">✖ nein</span>'
+            h.append(f"<tr><td>{escape(z.kennzahl.name)}</td><td>{sie}</td>"
+                     f"<td>{z.kennzahl.prozent_ch:.2f} % <span class='meta'>({escape(z.kennzahl.bezug)})</span></td></tr>")
+        h.append(f"</tbody></table><p class='meta'>Quelle: {escape(vergleich_ch.QUELLE)}</p>")
 
     if any(b.id in BETRUGSRISIKO for b in erg.befunde):
         h.append("""<div class="regel"><h2>Regel für die Buchhaltung</h2>

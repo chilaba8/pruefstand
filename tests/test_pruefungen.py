@@ -549,3 +549,30 @@ def test_dnsbl_sauber_gelistet_verweigert():
 def test_dnsbl_alle_verweigert_ist_nicht_ok():
     alle = {(f"4.4.8.8.{l}", "A"): ["127.255.255.254"] for l in dnsbl.LISTEN}
     assert _bl(alle) == {"DNSBL-NICHT-PRUEFBAR"}
+
+
+# --- Vergleich Schweiz -----------------------------------------------------------
+
+from pruefstand import vergleich_ch  # noqa: E402
+
+
+def test_vergleich_nur_geprueftes():
+    erg = Ergebnis("beispiel.ch", [Befund("MX-OK", "MX", Status.OK, "t"),
+                                   Befund("DMARC-REJECT", "DMARC", Status.OK, "t"),
+                                   Befund("DMARC-KEIN-RUA", "DMARC", Status.WARNUNG, "t")],
+                   ausgefuehrt=["MX", "DMARC"])
+    z = {x.kennzahl.name: x.sie for x in vergleich_ch.vergleiche(erg)}
+    assert z == {"DMARC vorhanden": True, "DMARC streng (p=reject)": True, "DMARC-Berichte (rua)": False}
+
+
+def test_vergleich_ohne_mail_keine_mailwerte():
+    erg = Ergebnis("beispiel.ch", [Befund("DNSSEC-OK", "DNSSEC", Status.OK, "t")],
+                   ausgefuehrt=["MX", "DMARC", "DNSSEC"])
+    assert [x.kennzahl.name for x in vergleich_ch.vergleiche(erg)] == ["DNSSEC"]
+
+
+def test_vergleich_dns_fehler_wird_ausgelassen():
+    erg = Ergebnis("beispiel.ch", [Befund("MX-OK", "MX", Status.OK, "t"),
+                                   Befund("DMARC-DNS-FEHLER", "DMARC", Status.WARNUNG, "t")],
+                   ausgefuehrt=["MX", "DMARC"])
+    assert vergleich_ch.vergleiche(erg) == []
