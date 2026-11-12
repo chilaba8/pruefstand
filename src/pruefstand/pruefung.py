@@ -79,18 +79,22 @@ ZUSATZ_GRUPPEN = {"MTASTS": ["TLSRPT"]}
 
 
 def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = None,
-                  aehnliche_suchen: bool = True, netz: Netz | None = None) -> Ergebnis:
-    """netz=None → nur DNS (keine Verbindung zur Webseite)."""
+                  aehnliche_suchen: bool = True, netz: Netz | None = None,
+                  online_quellen: bool = False, web: bool = True) -> Ergebnis:
+    """netz=None → nur DNS (keine Verbindung zur Webseite).
+    online_quellen → ähnliche Domains zusätzlich über RDAP/crt.sh nachschlagen (braucht netz)."""
     erg = Ergebnis(domain)
     for name, funktion, braucht_netz in PRUEFUNGEN:
         if name == "AEHNLICH" and not aehnliche_suchen:
             continue
-        if braucht_netz and netz is None:
+        if braucht_netz and (netz is None or not web):
             continue
         erg.ausgefuehrt += [name] + ZUSATZ_GRUPPEN.get(name, [])
         try:
             if name == "DKIM":
                 erg.befunde += dkim.pruefe(dns, domain, dkim_selektoren)
+            elif name == "AEHNLICH":
+                erg.befunde += aehnliche.pruefe(dns, domain, netz if online_quellen else None)
             elif braucht_netz:
                 erg.befunde += funktion(dns, domain, netz)
             else:

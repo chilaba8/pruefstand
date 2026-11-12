@@ -425,7 +425,7 @@ class FakeNetz:
         self.seiten = seiten or {}      # url → Antwort oder NetzFehler
         self.zert = zert
 
-    def hole(self, url, weiterleiten=True):
+    def hole(self, url, weiterleiten=True, max_bytes=0):
         a = self.seiten.get(url)
         if a is None or isinstance(a, NetzFehler):
             raise a or NetzFehler(url)
@@ -576,3 +576,41 @@ def test_vergleich_dns_fehler_wird_ausgelassen():
                                    Befund("DMARC-DNS-FEHLER", "DMARC", Status.WARNUNG, "t")],
                    ausgefuehrt=["MX", "DMARC"])
     assert vergleich_ch.vergleiche(erg) == []
+
+
+# --- Ähnliche Domains: Umlaute + Online-Quellen ------------------------------------
+
+def test_varianten_umlaut_punycode():
+    v = aehnliche.varianten("muster-ag.ch")
+    punycode = "müster-ag".encode("idna").decode() + ".ch"
+    assert punycode in v and "müster-ag.ch" in v[punycode]
+    t = aehnliche.Treffer(punycode, "x", [], [])
+    assert t.anzeige.startswith("müster-ag.ch (xn--")
+
+
+def test_online_quellen_neu_registriert_ist_kritisch():
+    aehnliche._rdap_basis = None
+    jetzt = datetime(2026, 11, 12, tzinfo=timezone.utc)
+    rdap = Antwort(200, "", {}, json.dumps({"events": [{"eventAction": "registration", "eventDate": "2026-10-30"}]}))
+    crt = Antwort(200, "", {}, json.dumps([{"not_before": "2026-11-01T10:00:00", "serial_number": "a"},
+                                           {"not_before": "2025-01-01T10:00:00", "serial_number": "b"}]))
+    netz = FakeNetz({
+        "https://data.iana.org/rdap/dns.json": Antwort(200, "", {}, json.dumps(
+            {"services": [[["com"], ["https://rdap.verisign.com/com/v1/"]]]})),   # .ch fehlt → Zusatz
+        "https://rdap.nic.ch/domain/musterag.ch": rdap,
+        "https://crt.sh/?q=musterag.ch&output=json": crt,
+    })
+    d = FakeDns({("musterag.ch", "MX"): ["10 mx.boese.example."]})
+    befunde = {b.id: b for b in aehnliche.pruefe(d, "muster-ag.ch", netz, jetzt)}
+    assert befunde["AEHNLICH-NEU-REGISTRIERT"].status == Status.KRITISCH
+    assert "registriert 2026-10-30" in befunde["AEHNLICH-NEU-REGISTRIERT"].detail
+    assert "1 neue Zertifikate" in befunde["AEHNLICH-NEU-REGISTRIERT"].detail
+    aehnliche._rdap_basis = None
+
+
+def test_online_quellen_fehler_bricht_nichts():
+    aehnliche._rdap_basis = None
+    d = FakeDns({("musterag.ch", "MX"): ["10 mx.boese.example."]})
+    befunde = ids(aehnliche.pruefe(d, "muster-ag.ch", FakeNetz(), JETZT))   # alles NetzFehler
+    assert befunde == {"AEHNLICH-MIT-MAIL"}
+    aehnliche._rdap_basis = None

@@ -47,14 +47,14 @@ class Netz:
     def __init__(self, timeout: float = 8.0):
         self.timeout = timeout
 
-    def hole(self, url: str, weiterleiten: bool = True) -> Antwort:
+    def hole(self, url: str, weiterleiten: bool = True, max_bytes: int = MAX_BYTES) -> Antwort:
         handler = [] if weiterleiten else [_KeineWeiterleitung()]
         opener = urllib.request.build_opener(*handler)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
             with opener.open(req, timeout=self.timeout) as r:
                 return Antwort(r.status, r.geturl(), {k.lower(): v for k, v in r.headers.items()},
-                               r.read(MAX_BYTES).decode("utf-8", "replace"))
+                               r.read(max_bytes).decode("utf-8", "replace"))
         except urllib.error.HTTPError as e:      # 3xx (ohne Weiterleitung), 4xx, 5xx
             return Antwort(e.code, url, {k.lower(): v for k, v in (e.headers or {}).items()}, "")
         except (urllib.error.URLError, OSError, ValueError) as e:

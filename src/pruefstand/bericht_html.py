@@ -28,7 +28,7 @@ SYMBOL = {Status.OK: "✔", Status.HINWEIS: "●", Status.WARNUNG: "▲", Status
           Status.INFO: "ℹ"}
 
 # Befunde, bei denen die Buchhaltungs-Regel besonders wichtig ist
-BETRUGSRISIKO = {"AEHNLICH-MIT-MAIL", "DMARC-FEHLT", "DMARC-P-NONE", "DMARC-UNGUELTIG",
+BETRUGSRISIKO = {"AEHNLICH-MIT-MAIL", "AEHNLICH-NEU-REGISTRIERT", "DMARC-FEHLT", "DMARC-P-NONE", "DMARC-UNGUELTIG",
                  "DMARC-MEHRFACH", "SPF-ALL-OFFEN", "SPF-FEHLT"}
 
 CSS = """

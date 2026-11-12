@@ -54,8 +54,9 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
     """Prüft eine Domain. Wirft ValueError, wenn sie nicht existiert, DnsFehler bei DNS-Problemen."""
     if not dns.existiert(domain):
         raise ValueError(f"Die Domain {domain} existiert nicht.")
-    erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche,
-                        None if args.ohne_web else Netz())
+    netz = Netz() if (not args.ohne_web or args.online_quellen) else None
+    erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche, netz,
+                        online_quellen=args.online_quellen, web=not args.ohne_web)
     anleitungen.ergaenze(erg)
     if not args.ohne_verlauf:
         v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
@@ -83,6 +84,9 @@ def _parser() -> argparse.ArgumentParser:
                    help="Suche nach ähnlichen Domains überspringen (schneller)")
     p.add_argument("--ohne-web", action="store_true",
                    help="nur DNS: Webseite und MTA-STS-Richtlinie nicht abrufen")
+    p.add_argument("--online-quellen", action="store_true",
+                   help="ähnliche Domains zusätzlich bei RDAP (Registrierdatum) und crt.sh "
+                        "(Zertifikate) nachschlagen – sendet diese Domainnamen an externe Dienste; langsam (1–3 Min.)")
     p.add_argument("--verlauf", metavar="ORDNER",
                    help="Ordner für frühere Ergebnisse (Standard: ~/.local/share/pruefstand/verlauf)")
     p.add_argument("--ohne-verlauf", action="store_true",
