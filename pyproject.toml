@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "dnspython>=2.4",
     "rich>=13",
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]

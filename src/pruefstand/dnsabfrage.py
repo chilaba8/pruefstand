@@ -10,6 +10,7 @@ import dns.exception
 import dns.flags
 import dns.name
 import dns.resolver
+import dns.reversename
 
 
 class DnsFehler(Exception):
@@ -40,6 +41,13 @@ class Dns:
 
     def txt(self, name: str) -> list[str]:
         return self.abfragen(name, "TXT")
+
+    def ptr(self, ip: str) -> str | None:
+        """Rückwärtsauflösung IP → Hostname (für DMARC-Berichte)."""
+        try:
+            return self.abfragen(dns.reversename.from_address(ip).to_text(), "PTR")[0].rstrip(".").lower()
+        except (IndexError, ValueError, DnsFehler, dns.exception.SyntaxError):
+            return None
 
     def existiert(self, name: str) -> bool:
         """True, wenn der Name im DNS existiert (auch wenn er keine A-Einträge hat)."""

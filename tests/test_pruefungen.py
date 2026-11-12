@@ -643,3 +643,171 @@ def test_html_de_de():
     erg.setze_sprache("de-DE")
     html = bericht_html.erzeuge(erg)
     assert 'lang="de-DE"' in html and "außerdem „x“" in html and "«" not in html
+
+
+# --- Modus A: E-Mail prüfen ---------------------------------------------------------
+
+from email.message import EmailMessage as _Mail  # noqa: E402
+
+from pruefstand import mailpruefung  # noqa: E402
+
+
+def _mail(von="Peter Muster <peter@muster-ag.ch>", auth="spf=pass dkim=pass header.d=muster-ag.ch dmarc=pass "
+          "header.from=muster-ag.ch", reply=None, text="Hallo, anbei die Offerte.", html=None, anhang=None,
+          return_path=None):
+    m = _Mail()
+    if auth is not None:
+        m["Authentication-Results"] = f"mx.empfaenger.ch; {auth}"
+    if return_path:
+        m["Return-Path"] = return_path
+    m["From"] = von
+    m["To"] = "buchhaltung@kunde.ch"
+    m["Subject"] = "Rechnung"
+    if reply:
+        m["Reply-To"] = reply
+    m.set_content(text)
+    if html:
+        m.add_alternative(html, subtype="html")
+    if anhang:
+        m.add_attachment(b"x", maintype="application", subtype="octet-stream", filename=anhang)
+    return bytes(m)
+
+
+def _mids(roh, eigene=None):
+    erg = mailpruefung.pruefe_mail(roh, "t.eml", eigene)
+    return {b.id for b in erg.befunde}, erg.urteil[0]
+
+
+def test_mail_unauffaellig():
+    ids_, urteil = _mids(_mail())
+    assert "MAIL-DMARC-PASS" in ids_ and urteil == Status.OK
+
+
+def test_mail_rechnungsbetrug_typisch():
+    roh = _mail(von="Peter Muster <peter@mu5ter-ag.ch>",
+                auth="spf=pass dkim=none dmarc=none header.from=mu5ter-ag.ch",
+                reply="buchhaltung.muster@gmail.com",
+                text="Dringend: Unsere Bankverbindung hat sich geändert. Neue IBAN: CH93 0076 2011 6238 5295 7")
+    ids_, urteil = _mids(roh, ["muster-ag.ch"])
+    assert {"MAIL-AEHNLICHE-DOMAIN", "MAIL-REPLY-TO-ANDERS", "MAIL-BANKWECHSEL", "MAIL-DRUCK"} <= ids_
+    assert urteil == Status.KRITISCH
+
+
+def test_mail_dmarc_fail_ist_kritisch():
+    ids_, urteil = _mids(_mail(von="Chef <chef@muster-ag.ch>",
+                               auth="spf=fail dkim=none dmarc=fail header.from=muster-ag.ch"), ["muster-ag.ch"])
+    assert {"MAIL-DMARC-FAIL", "MAIL-EIGENE-DOMAIN-GEFAELSCHT"} <= ids_ and urteil == Status.KRITISCH
+
+
+def test_mail_links():
+    html = ('<a href="https://login.boese.example/x">https://www.muster-ag.ch/login</a>'
+            '<a href="http://192.0.2.5/a">hier</a><a href="https://bit.ly/abc">Link</a>'
+            '<a href="https://xn--mster-ag-65a.ch/">muster</a>')
+    ids_, _ = _mids(_mail(html=html), ["muster-ag.ch"])
+    assert {"MAIL-LINK-TAEUSCHT", "MAIL-LINK-IP", "MAIL-LINK-KURZ-URL", "MAIL-LINK-PUNYCODE",
+            "MAIL-LINK-AEHNLICHE-DOMAIN"} <= ids_
+
+
+@pytest.mark.parametrize("datei, erwartet", [
+    ("rechnung.pdf.exe", "MAIL-ANHANG-AUSFUEHRBAR"), ("rechnung.pdf.iso", "MAIL-ANHANG-DOPPELENDUNG"),
+    ("offerte.docm", "MAIL-ANHANG-MAKRO"), ("login.html", "MAIL-ANHANG-HTML"),
+    ("bild.svg", "MAIL-ANHANG-HTML"), ("daten.zip", "MAIL-ANHANG-ARCHIV"), ("notiz.one", "MAIL-ANHANG-AUSFUEHRBAR"),
+])
+def test_mail_anhaenge(datei, erwartet):
+    assert erwartet in _mids(_mail(anhang=datei))[0]
+
+
+def test_mail_harmloser_anhang():
+    ids_, urteil = _mids(_mail(anhang="offerte.pdf"))
+    assert not any(i.startswith("MAIL-ANHANG") for i in ids_) and urteil == Status.OK
+
+
+def test_iban_pruefziffer():
+    assert mailpruefung.iban_gueltig("CH93 0076 2011 6238 5295 7")
+    assert not mailpruefung.iban_gueltig("CH93 0076 2011 6238 5295 8")
+
+
+def test_mail_anzeigename_mit_fremder_adresse():
+    assert "MAIL-ANZEIGENAME-ADRESSE" in _mids(_mail(von='"chef@muster-ag.ch" <x@boese.example>'))[0]
+
+
+def test_mail_ohne_auth_header():
+    assert "MAIL-KEINE-AUTH" in _mids(_mail(auth=None))[0]
+
+
+def test_mail_zu_gross():
+    with pytest.raises(ValueError):
+        mailpruefung.pruefe_mail(b"x" * (mailpruefung.MAX_GROESSE + 1))
+
+
+# --- DMARC-Berichte -------------------------------------------------------------------
+
+import gzip as _gzip  # noqa: E402
+import zipfile as _zip  # noqa: E402
+
+from pruefstand import dmarc_berichte  # noqa: E402
+
+RUA = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feedback><report_metadata><org_name>google.com</org_name>
+<date_range><begin>1762905600</begin><end>1762991999</end></date_range></report_metadata>
+<policy_published><domain>muster-ag.ch</domain><p>quarantine</p></policy_published>
+<record><row><source_ip>203.0.113.10</source_ip><count>200</count><policy_evaluated>
+<disposition>none</disposition><dkim>pass</dkim><spf>pass</spf></policy_evaluated></row>
+<identifiers><header_from>muster-ag.ch</header_from></identifiers>
+<auth_results><dkim><domain>muster-ag.ch</domain><result>pass</result><selector>20240131-rsa2048-abc</selector></dkim></auth_results></record>
+<record><row><source_ip>203.0.113.20</source_ip><count>25</count><policy_evaluated>
+<disposition>quarantine</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated></row>
+<identifiers><header_from>muster-ag.ch</header_from></identifiers></record>
+<record><row><source_ip>198.51.100.66</source_ip><count>5</count><policy_evaluated>
+<disposition>quarantine</disposition><dkim>fail</dkim><spf>fail</spf></policy_evaluated></row>
+<identifiers><header_from>muster-ag.ch</header_from></identifiers></record>
+</feedback>"""
+
+
+class PtrDns:
+    namen = {"203.0.113.10": "mx1.mail.hostpoint.ch", "203.0.113.20": "o1.ptr123.sendgrid.net"}
+
+    def ptr(self, ip):
+        return self.namen.get(ip)
+
+
+def test_rua_auswertung(tmp_path):
+    (tmp_path / "a.xml").write_bytes(RUA)
+    with _zip.ZipFile(tmp_path / "b.zip", "w") as z:
+        z.writestr("b.xml", RUA)
+    (tmp_path / "c.xml.gz").write_bytes(_gzip.compress(RUA))
+    aus = dmarc_berichte.lies_alle([tmp_path])
+    assert aus.dateien == 3 and aus.gesamt == 3 * 230 and aus.bestanden == 3 * 200
+    dmarc_berichte.ergaenze_ptr(aus, PtrDns())
+    befunde = {b.id: b for b in dmarc_berichte.bewerte(aus)}
+    assert "SendGrid" in befunde["RUA-ECHTE-DIENSTE-SCHEITERN"].detail
+    assert "198.51.100.66" in befunde["RUA-UNBEKANNTE-ABSENDER"].detail
+    assert "20240131-rsa2048-abc" in befunde["RUA-DKIM-SELEKTOREN"].detail
+    assert "RUA-BEREIT-FUER-REJECT" not in befunde
+
+
+def test_rua_unbekannte_verhindern_bereit():
+    aus = dmarc_berichte.Auswertung(policy={"quarantine"})
+    aus.quellen = {"1": dmarc_berichte.Quelle("1", 200, 200, ptr="mx1.mail.hostpoint.ch"),
+                   "2": dmarc_berichte.Quelle("2", 25, 0)}
+    ids_ = {b.id for b in dmarc_berichte.bewerte(aus)}
+    assert "RUA-VOR-REJECT-KLAEREN" in ids_ and "RUA-BEREIT-FUER-REJECT" not in ids_
+    aus.quellen["2"].anzahl = 2                     # nur ~1 % → bereit
+    assert "RUA-BEREIT-FUER-REJECT" in {b.id for b in dmarc_berichte.bewerte(aus)}
+
+
+def test_rua_xml_bombe_wird_abgewiesen(tmp_path):
+    bombe = b"""<?xml version="1.0"?><!DOCTYPE l [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">]><feedback>&c;</feedback>"""
+    (tmp_path / "bombe.xml").write_bytes(bombe)
+    (tmp_path / "ok.xml").write_bytes(RUA)
+    aus = dmarc_berichte.lies_alle([tmp_path])
+    assert aus.dateien == 1 and len(aus.fehler) == 1 and "bombe.xml" in aus.fehler[0]
+
+
+def test_rua_zip_bombe(tmp_path, monkeypatch):
+    monkeypatch.setattr(dmarc_berichte, "MAX_ENTPACKT", 1000)
+    with _zip.ZipFile(tmp_path / "gross.zip", "w", compression=_zip.ZIP_DEFLATED) as z:
+        z.writestr("gross.xml", b"<feedback>" + b" " * 100000 + b"</feedback>")
+    aus = dmarc_berichte.lies_alle([tmp_path])
+    assert aus.dateien == 0 and "zu gross" in aus.fehler[0]

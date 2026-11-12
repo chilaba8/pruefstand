@@ -105,3 +105,66 @@ def als_json(erg: Ergebnis) -> str:
         "faelschungsschutz": {"status": status.name, "text": satz},
         "befunde": [b.als_dict() for b in erg.befunde],
     }, ensure_ascii=False, indent=2)
+
+
+def mail_terminal(erg, console: Console | None = None) -> None:
+    c = console or Console()
+    status, satz = erg.urteil
+    _, farbe = AMPEL[status]
+    kopf = Text()
+    kopf.append(f"Datei: {erg.datei}\n", style="bold")
+    kopf.append(f"Von: {erg.von}\nBetreff: {erg.betreff}\n\n")
+    kopf.append("Ist diese E-Mail echt?\n", style="bold")
+    kopf.append(satz, style=farbe)
+    c.print(Panel(kopf, title=f"pruefstand {__version__} – E-Mail-Prüfung", border_style=farbe))
+    for b in sorted(erg.befunde, key=lambda x: -x.status):
+        text, stil = AMPEL[b.status]
+        c.print(f"[{stil}]{text:<11}[/{stil}] [bold]{b.pruefung}:[/bold] {b.titel}  [dim]({b.id})[/dim]")
+        if b.detail and b.status >= Status.HINWEIS:
+            c.print(Text("            " + b.detail.replace("\n", "\n            "), style="dim"))
+        if b.empfehlung and b.status >= Status.HINWEIS:
+            c.print(f"            → {b.empfehlung}")
+    c.print("\n[dim]Lokal geprüft: Kein Link wurde geöffnet, kein Anhang ausgeführt.[/dim]")
+
+
+def mail_json(erg) -> str:
+    status, satz = erg.urteil
+    return json.dumps({
+        "werkzeug": f"pruefstand {__version__}", "datei": erg.datei, "von": erg.von,
+        "betreff": erg.betreff, "urteil": {"status": status.name, "text": satz},
+        "befunde": [b.als_dict() for b in erg.befunde],
+    }, ensure_ascii=False, indent=2)
+
+
+def rua_terminal(aus, befunde, console: Console | None = None) -> None:
+    c = console or Console()
+    c.print(Panel(Text(f"{aus.dateien} Bericht(e) · {aus.gesamt} E-Mails · "
+                       f"{len(aus.quellen)} Server", style="bold"),
+                  title=f"pruefstand {__version__} – DMARC-Berichte", border_style="cyan"))
+    t = Table(show_header=True, header_style="bold", expand=True)
+    for spalte in ("Server (IP)", "Name", "E-Mails", "DMARC ok", "SPF", "DKIM"):
+        t.add_column(spalte)
+    for q in sorted(aus.quellen.values(), key=lambda x: -x.anzahl)[:30]:
+        stil = "green" if q.quote == 1 else ("yellow" if q.quote > 0 or q.name else "red")
+        t.add_row(q.ip, q.name or q.ptr or "–", str(q.anzahl), Text(f"{q.quote:.0%}", style=stil),
+                  str(q.spf_ok), str(q.dkim_ok))
+    c.print(t)
+    for b in befunde:
+        text, stil = AMPEL[b.status]
+        c.print(f"\n[{stil}]{text}[/{stil}] [bold]{b.titel}[/bold]  [dim]({b.id})[/dim]")
+        if b.detail:
+            c.print(Text(b.detail, style="dim"))
+        if b.empfehlung:
+            c.print(f"→ {b.empfehlung}")
+    c.print("\n[dim]Lokal ausgewertet; nur die Namen der Server-IPs wurden per DNS nachgeschlagen.[/dim]")
+
+
+def rua_json(aus, befunde) -> str:
+    return json.dumps({
+        "werkzeug": f"pruefstand {__version__}", "dateien": aus.dateien, "gesamt": aus.gesamt,
+        "bestanden": aus.bestanden, "domains": sorted(aus.domains), "policy": sorted(aus.policy),
+        "quellen": [{"ip": q.ip, "ptr": q.ptr, "name": q.name, "anzahl": q.anzahl,
+                     "bestanden": q.bestanden, "spf_ok": q.spf_ok, "dkim_ok": q.dkim_ok,
+                     "dkim_selektoren": sorted(q.dkim_selektoren)} for q in aus.quellen.values()],
+        "befunde": [b.als_dict() for b in befunde],
+    }, ensure_ascii=False, indent=2)

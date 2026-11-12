@@ -10,12 +10,13 @@ from pathlib import Path
 
 from rich.console import Console
 
-from pruefstand import __version__, anleitungen, bericht, bericht_html, liste, verlauf
+from pruefstand import (__version__, anleitungen, bericht, bericht_html, dmarc_berichte, liste,
+                        mailpruefung, verlauf)
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
 from pruefstand.netz import Netz
-from pruefstand.sprache import SPRACHEN
+from pruefstand.sprache import SPRACHEN, fuer
 from pruefstand.pruefung import Ergebnis, pruefe_domain
 
 # Rückgabewerte (praktisch für Skripte/CI)
@@ -107,6 +108,15 @@ def _parser() -> argparse.ArgumentParser:
                         help="Zielordner für die Berichte (Standard: berichte)")
     liste_.add_argument("--mit-pdf", action="store_true", help="zusätzlich PDF pro Domain")
 
+    mail = p.add_argument_group("eine verdächtige E-Mail prüfen («Ist diese E-Mail echt?»)")
+    mail.add_argument("--mail", metavar="DATEI", help="E-Mail als .eml-Datei (lokal geprüft)")
+    mail.add_argument("--eigene-domain", metavar="DOMAIN", action="append", default=[],
+                      help="Ihre Domain(s) – erkennt Absender, die ähnlich aussehen (mehrfach möglich)")
+
+    rua = p.add_argument_group("DMARC-Berichte auswerten")
+    rua.add_argument("--dmarc-berichte", metavar="ORDNER", nargs="+",
+                     help="Ordner oder Dateien mit DMARC-Berichten (.xml, .gz, .zip)")
+
     marke = p.add_argument_group("eigenes Logo (für IT-Dienstleister)")
     marke.add_argument("--absender", metavar="NAME", help="Ihr Firmenname im Bericht")
     marke.add_argument("--logo", metavar="DATEI", help="Ihr Logo (PNG/JPG/SVG/WebP, max. 500 KB)")
@@ -120,8 +130,14 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     p = _parser()
     args = p.parse_args(argv)
-    if bool(args.domain) == bool(args.liste):
-        p.error("Bitte entweder eine Domain ODER --liste DATEI angeben.")
+    modi = [m for m in (args.domain, args.liste, args.mail, args.dmarc_berichte) if m]
+    if len(modi) != 1:
+        p.error("Bitte genau EINES angeben: eine Domain, --liste DATEI, --mail DATEI "
+                "oder --dmarc-berichte ORDNER.")
+    if args.mail:
+        return _mail(args)
+    if args.dmarc_berichte:
+        return _dmarc_berichte(args)
 
     try:
         absender = Absender(args.absender, lade_logo(args.logo) if args.logo else None)
@@ -133,6 +149,42 @@ def main(argv: list[str] | None = None) -> int:
     if args.liste:
         return _liste(dns, args, absender)
     return _einzeln(dns, args, absender)
+
+
+def _mail(args) -> int:
+    try:
+        pfad = Path(args.mail)
+        if pfad.suffix.lower() == ".msg":
+            raise ValueError("Outlook-.msg wird nicht unterstützt. Bitte als .eml speichern "
+                             "(Outlook im Web / Thunderbird: «Herunterladen» bzw. «Speichern unter»).")
+        eigene = [normalisiere(d) for d in args.eigene_domain]
+        erg = mailpruefung.pruefe_mail(pfad.read_bytes(), pfad.name, eigene,
+                                       Netz() if args.online_quellen else None)
+    except (ValueError, OSError) as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        return EXIT_FEHLER
+    for b in erg.befunde:
+        b.titel, b.detail, b.empfehlung = (fuer(b.titel, args.sprache), b.detail,
+                                           fuer(b.empfehlung, args.sprache))
+    if args.json:
+        print(bericht.mail_json(erg))
+    else:
+        bericht.mail_terminal(erg)
+    return _exit_code(erg.urteil[0])
+
+
+def _dmarc_berichte(args) -> int:
+    aus = dmarc_berichte.lies_alle([Path(p) for p in args.dmarc_berichte])
+    if aus.dateien == 0 and not aus.fehler:
+        print("Fehler: Keine Berichte gefunden (.xml, .gz, .zip).", file=sys.stderr)
+        return EXIT_FEHLER
+    dmarc_berichte.ergaenze_ptr(aus, Dns(args.dns))
+    befunde = dmarc_berichte.bewerte(aus)
+    if args.json:
+        print(bericht.rua_json(aus, befunde))
+    else:
+        bericht.rua_terminal(aus, befunde)
+    return _exit_code(max((b.status for b in befunde), default=Status.INFO))
 
 
 def _einzeln(dns: Dns, args, absender: Absender) -> int:
