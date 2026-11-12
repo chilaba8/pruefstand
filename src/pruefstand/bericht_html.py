@@ -72,7 +72,7 @@ table.vergleich th { font-size: 12.5px; color: var(--leise); }
 .befund .id { color:var(--leise); font-weight:400; font-size:12px; white-space:nowrap; }
 .befund .status { font-size:13px; font-weight:600; }
 pre { background:var(--flaeche); padding:8px 10px; border-radius:4px; white-space:pre-wrap;
-      word-break:break-all; font-size:12.5px; margin: 8px 0; color:var(--text); }
+      overflow-wrap:anywhere; font-size:12.5px; margin: 8px 0; color:var(--text); }
 .anleitung { background:#eef4fb; border-radius:4px; padding:8px 10px; margin-top:8px; color:var(--text); }
 .quelle { font-size:12px; color:var(--leise); word-break:break-all; }
 .kopfzeile { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
@@ -152,7 +152,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 
 <h2>Für die Geschäftsleitung <span class="note note-{erg.note}" title="{erg.punkte}/100 Punkte">Note {erg.note}</span></h2>
 <div class="urteil {FARBE[status]}">
-  <div class="frage">Kann jemand in Ihrem Namen gefälschte E-Mails verschicken – z. B. Rechnungen
+  <div class="frage">Sind Sie gegen gefälschte E-Mails in Ihrem Namen geschützt – z. B. Rechnungen
   mit einer falschen Bankverbindung?</div>
   <div class="antwort">{escape(satz)}</div>
 </div>

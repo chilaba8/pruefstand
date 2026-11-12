@@ -1,6 +1,6 @@
 # pruefstand
 
-**Kann jemand in Ihrem Namen gefälschte E-Mails verschicken – z. B. Rechnungen mit einer falschen Bankverbindung?**
+**Sind Sie gegen gefälschte E-Mails in Ihrem Namen geschützt – z. B. Rechnungen mit einer falschen Bankverbindung?**
 
 `pruefstand` prüft eine Domain **passiv** – nur über öffentliche DNS-Daten – und erstellt
 einen Bericht auf Deutsch: eine Seite für die Geschäftsleitung in einfacher Sprache,
