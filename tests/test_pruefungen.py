@@ -1000,3 +1000,32 @@ def test_web_tls_nicht_pruefbar_kein_befund():
     netz = FakeNetzTls(GUTE_SEITEN, Zertifikat(JETZT + timedelta(days=60), "X"), None)
     i = ids(web.pruefe(FakeDns(WEB_DNS), "beispiel.ch", netz, JETZT))
     assert "WEB-TLS-ALT" not in i and "WEB-TLS-OK" not in i
+
+
+# --- Normen + Note ------------------------------------------------------------------------
+
+from pruefstand import normen  # noqa: E402
+
+
+def test_normen_laengstes_praefix():
+    assert any("8.16" in n for n in normen.fuer("DMARC-KEIN-RUA"))       # spezieller als «DMARC-»
+    assert any("5.14" in n for n in normen.fuer("DMARC-FEHLT"))
+    assert "nDSG Art. 8 (Datensicherheit)" in normen.fuer("WEB-HSTS-FEHLT")
+    assert normen.fuer("MAIL-XYZ") == []
+
+
+@pytest.mark.parametrize("stati, note", [
+    ([], "A"), ([Status.HINWEIS] * 3, "A"), ([Status.WARNUNG, Status.WARNUNG], "B"),
+    ([Status.WARNUNG] * 3, "C"), ([Status.KRITISCH], "D"),
+    ([Status.KRITISCH, Status.KRITISCH, Status.WARNUNG], "E"), ([Status.KRITISCH] * 5, "F"),
+])
+def test_note(stati, note):
+    erg = Ergebnis("x.ch", [Befund(f"T-{i}", "T", s, "t") for i, s in enumerate(stati)])
+    assert erg.note == note
+
+
+def test_html_zeigt_note_und_normen():
+    erg = Ergebnis("x.ch", [Befund("WEB-HSTS-FEHLT", "Web", Status.HINWEIS, "t")])
+    normen.ergaenze(erg)
+    html = bericht_html.erzeuge(erg)
+    assert "Note A" in html and "nDSG Art. 8" in html and "keine Rechtsberatung" in html

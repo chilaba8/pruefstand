@@ -36,6 +36,22 @@ class Ergebnis:
         return any(b.id == befund_id for b in self.befunde)
 
     @property
+    def punkte(self) -> int:
+        """100 minus Abzüge: kritisch 25, Warnung 10, Hinweis 3 (mindestens 0)."""
+        abzug = {Status.KRITISCH: 25, Status.WARNUNG: 10, Status.HINWEIS: 3}
+        return max(0, 100 - sum(abzug.get(b.status, 0) for b in self.befunde))
+
+    @property
+    def note(self) -> str:
+        """A–F. Mit einem kritischen Befund höchstens D – egal wie viel sonst stimmt."""
+        p = self.punkte
+        note = next(n for grenze, n in ((90, "A"), (80, "B"), (65, "C"), (50, "D"), (35, "E"), (0, "F"))
+                    if p >= grenze)
+        if self.schlimmster >= Status.KRITISCH and note < "D":
+            note = "D"
+        return note
+
+    @property
     def anbieter(self) -> list[str]:
         for b in self.befunde:
             if b.id == "MX-OK":

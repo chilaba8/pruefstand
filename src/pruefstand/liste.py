@@ -63,15 +63,15 @@ def schreibe_csv(zeilen: list[Zeile], ziel: Path) -> None:
     # Semikolon + BOM: so öffnet Excel (CH/DE) die Datei direkt richtig
     with ziel.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
-        w.writerow(["Domain", "Firma", "Fälschungsschutz", "Kritisch", "Warnungen", "Hinweise",
+        w.writerow(["Domain", "Firma", "Note", "Fälschungsschutz", "Kritisch", "Warnungen", "Hinweise",
                     "E-Mail-Anbieter", "DNS-Anbieter", "Neu", "Behoben", "Fehler"])
         for z in zeilen:
             if z.ergebnis is None:
-                w.writerow([z.eintrag.domain, z.eintrag.firma or "", "", "", "", "", "", "", "", "", z.fehler])
+                w.writerow([z.eintrag.domain, z.eintrag.firma or "", "", "", "", "", "", "", "", "", "", z.fehler])
                 continue
             e = z.ergebnis
             n = {s: sum(1 for b in e.befunde if b.status == s) for s in Status}
-            w.writerow([e.domain, z.eintrag.firma or "", e.faelschungsschutz[1].split(".")[0],
+            w.writerow([e.domain, z.eintrag.firma or "", e.note, e.faelschungsschutz[1].split(".")[0],
                         n[Status.KRITISCH], n[Status.WARNUNG], n[Status.HINWEIS],
                         ", ".join(e.anbieter), ", ".join(e.dns_anbieter),
                         len(e.aenderungen.neu) if e.aenderungen else "",
@@ -104,7 +104,7 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender, spra
     for z in sorted(zeilen, key=sortierung):
         if z.ergebnis is None:
             reihen.append(f"<tr><td>{escape(z.eintrag.domain)}</td><td>{escape(z.eintrag.firma or '')}</td>"
-                          f"<td colspan='4'><span class='kritisch'>Fehler: {escape(z.fehler or '')}</span></td></tr>")
+                          f"<td colspan='5'><span class='kritisch'>Fehler: {escape(z.fehler or '')}</span></td></tr>")
             continue
         e = z.ergebnis
         status, satz = e.faelschungsschutz
@@ -114,6 +114,7 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender, spra
             links += f" · <a href='{escape(e.domain)}.pdf'>PDF</a>"
         reihen.append(
             f"<tr><td><strong>{escape(e.domain)}</strong></td><td>{escape(z.eintrag.firma or '')}</td>"
+            f"<td><span class='note note-{e.note}'>{e.note}</span></td>"
             f"<td><span class='{FARBE[status]}'>{SYMBOL[status]} {escape(satz.split('.')[0])}</span></td>"
             f"<td><span class='kritisch'>{n[Status.KRITISCH]}</span> / "
             f"<span class='warnung'>{n[Status.WARNUNG]}</span> / "
@@ -134,7 +135,7 @@ th {{ font-size: 13px; color: var(--leise); }}
 <div class="kopfzeile"><h1>Übersicht E-Mail-Sicherheit</h1>{logo}</div>
 <div class="meta">{len(zeilen)} Domains · geprüft am {datetime.now():%d.%m.%Y um %H:%M} ·
 dringendste zuerst</div>
-<table><thead><tr><th>Domain</th><th>Firma</th><th>Fälschungsschutz</th>
+<table><thead><tr><th>Domain</th><th>Firma</th><th>Note</th><th>Fälschungsschutz</th>
 <th>{TEXT[Status.KRITISCH]} / {TEXT[Status.WARNUNG]} / {TEXT[Status.HINWEIS]}</th><th>Seit letzter Prüfung</th><th>Bericht</th></tr></thead>
 <tbody>{''.join(reihen)}</tbody></table>
 <footer>{von} pruefstand {__version__} – passiver Check: öffentliche DNS-Daten und normaler Aufruf der Webseiten.</footer>

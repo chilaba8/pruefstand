@@ -57,6 +57,10 @@ ol.todo .was { color:var(--text); font-weight:600; }
 table.vergleich { width:100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
 table.vergleich th, table.vergleich td { text-align:left; padding: 5px 6px; border-bottom: 1px solid var(--linie); }
 table.vergleich th { font-size: 12.5px; color: var(--leise); }
+.note { display:inline-block; margin-left: 10px; padding: 2px 12px; border-radius: 6px; color:#fff;
+        font-size: 16px; vertical-align: middle; }
+.note-A{background:var(--ok)} .note-B{background:#4a8f2b} .note-C{background:#8a7a00}
+.note-D{background:var(--warnung)} .note-E{background:#c2410c} .note-F{background:var(--kritisch)}
 .regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
 .regel h2 { margin-top: 0; color: var(--kritisch); }
 .befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
@@ -100,6 +104,8 @@ def _befund_html(b: Befund) -> str:
         teile.append(f"<pre>{escape(b.detail)}</pre>")
     if b.empfehlung:
         teile.append(f"<div><strong>Empfehlung:</strong> {escape(b.empfehlung)}</div>")
+    if b.normen:
+        teile.append(f'<div class="quelle">Bezug: {escape(" · ".join(b.normen))}</div>')
     if b.anleitung:
         teile.append(f'<div class="anleitung"><strong>So geht\'s bei Ihrem Anbieter:</strong> '
                      f'{escape(b.anleitung)}<div class="quelle">Quelle: {escape(b.quelle)}</div></div>')
@@ -144,7 +150,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 {escape(', '.join(erg.anbieter) or 'unbekannt')} · DNS-Anbieter:
 {escape(', '.join(erg.dns_anbieter) or 'unbekannt')}</div>
 
-<h2>Für die Geschäftsleitung</h2>
+<h2>Für die Geschäftsleitung <span class="note note-{erg.note}" title="{erg.punkte}/100 Punkte">Note {erg.note}</span></h2>
 <div class="urteil {FARBE[status]}">
   <div class="frage">Kann jemand in Ihrem Namen gefälschte E-Mails verschicken – z. B. Rechnungen
   mit einer falschen Bankverbindung?</div>
@@ -191,6 +197,10 @@ Betrugsfälle können Sie dem Bundesamt für Cybersicherheit (BACS) melden.</p><
              '<p class="meta">Für Ihren Informatiker. Jeder Befund hat eine feste ID.</p>')
     h += [_befund_html(b) for b in sorted(erg.befunde, key=lambda b: -b.status)]
     von = f"Erstellt von {escape(absender.name)} mit" if absender.name else "Erstellt mit"
+    if any(b.normen for b in erg.befunde):
+        from pruefstand.normen import HINWEIS as NORM_HINWEIS
+        h.append(f'<p class="meta">{escape(NORM_HINWEIS)} Note: 100 Punkte minus 25 je kritischem '
+                 'Befund, 10 je Warnung, 3 je Hinweis; mit kritischem Befund höchstens D.</p>')
     h.append(f"""<footer>{von} pruefstand {__version__} – passiver Check: Es wurden nur öffentliche
 DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 {jetzt:%d.%m.%Y} und ersetzt keine vollständige Sicherheitsprüfung.</footer>

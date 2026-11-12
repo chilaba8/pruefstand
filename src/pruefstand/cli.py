@@ -11,7 +11,7 @@ from pathlib import Path
 from rich.console import Console
 
 from pruefstand import (__version__, anleitungen, bericht, bericht_html, benachrichtigung,
-                        dmarc_berichte, liste, mailpruefung, verlauf)
+                        dmarc_berichte, liste, mailpruefung, normen, verlauf)
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
@@ -61,6 +61,7 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
                         online_quellen=args.online_quellen, web=not args.ohne_web,
                         subdomains_suchen=not args.ohne_subdomains)
     anleitungen.ergaenze(erg)
+    normen.ergaenze(erg)
     erg.setze_sprache(args.sprache)
     if not args.ohne_verlauf:
         v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)

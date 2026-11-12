@@ -31,7 +31,8 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
     kopf = Text()
     kopf.append(f"Domain: {erg.domain}\n", style="bold")
     kopf.append(f"E-Mail-Anbieter: {', '.join(erg.anbieter) or 'unbekannt'}\n")
-    kopf.append(f"DNS-Anbieter: {', '.join(erg.dns_anbieter) or 'unbekannt'}\n\n")
+    kopf.append(f"DNS-Anbieter: {', '.join(erg.dns_anbieter) or 'unbekannt'}\n")
+    kopf.append(f"Gesamtnote: {erg.note} ({erg.punkte}/100)\n\n", style="bold")
     kopf.append("Ist Ihre Domain gegen gefälschte E-Mails geschützt?\n", style="bold")
     kopf.append(satz, style=farbe)
     c.print(Panel(kopf, title=f"pruefstand {__version__}", border_style=farbe))
@@ -102,6 +103,7 @@ def als_json(erg: Ergebnis) -> str:
         "anbieter": erg.anbieter,
         "dns_anbieter": erg.dns_anbieter,
         "ausgefuehrt": erg.ausgefuehrt,
+        "note": erg.note, "punkte": erg.punkte,
         "faelschungsschutz": {"status": status.name, "text": satz},
         "befunde": [b.als_dict() for b in erg.befunde],
     }, ensure_ascii=False, indent=2)

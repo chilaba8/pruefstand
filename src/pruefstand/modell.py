@@ -27,6 +27,7 @@ class Befund:
     daten: dict = field(default_factory=dict)  # Rohdaten (für JSON/Informatiker)
     anleitung: str = ""     # Schritt-für-Schritt beim erkannten Anbieter (siehe anleitungen.py)
     quelle: str = ""        # offizielle Doku, aus der die Anleitung stammt
+    normen: list[str] = field(default_factory=list)   # nDSG / IKT-Minimalstandard / ISO 27001
 
     def als_dict(self) -> dict:
         d = asdict(self)
