@@ -49,7 +49,7 @@ class Treffer:
 
     @property
     def anzeige(self) -> str:
-        """Punycode lesbar machen: xn--mster-ag-q9a.ch → müster-ag.ch (xn--…)"""
+        """Punycode lesbar machen: xn--mster-ag-65a.ch → müster-ag.ch (xn--…)"""
         try:
             lesbar = self.domain.encode("ascii").decode("idna")
         except UnicodeError:
