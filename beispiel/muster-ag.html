@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de-CH"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sicherheitsbericht muster-ag.example</title>
+<style>
+:root { --ok:#1b7f3b; --hinweis:#1f6fb2; --warnung:#b26a00; --kritisch:#b3261e; --info:#666;
+        --text:#1d1d1f; --leise:#5f6368; --linie:#dadce0; --flaeche:#f6f7f9; }
+* { box-sizing:border-box; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+       color:var(--text); background:#fff; margin:0; line-height:1.45; font-size:15px; }
+main { max-width: 820px; margin: 0 auto; padding: 32px 20px; }
+h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 10px; }
+.meta { color:var(--leise); font-size:13px; }
+.urteil { border-left: 8px solid; padding: 16px 20px; margin: 22px 0; background:var(--flaeche);
+          border-radius: 6px; }
+.urteil .frage { font-weight:600; margin-bottom:6px; }
+.urteil .antwort { font-size: 18px; font-weight:600; }
+.ok{color:var(--ok);border-color:var(--ok)} .hinweis{color:var(--hinweis);border-color:var(--hinweis)}
+.warnung{color:var(--warnung);border-color:var(--warnung)}
+.kritisch{color:var(--kritisch);border-color:var(--kritisch)} .info{color:var(--info);border-color:var(--info)}
+.zaehler { display:flex; gap:10px; flex-wrap:wrap; margin: 6px 0 18px; }
+.zaehler span { border:1px solid; border-radius: 999px; padding: 3px 12px; font-size:13px; font-weight:600; }
+ol.todo { padding-left: 22px; } ol.todo li { margin-bottom: 10px; }
+ol.todo .was { color:var(--text); font-weight:600; }
+.regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
+.regel h2 { margin-top: 0; color: var(--kritisch); }
+.befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
+          padding: 12px 16px; margin: 12px 0; break-inside: avoid; color: var(--text); }
+.befund .status { color: var(--farbe); }
+.domain { white-space: nowrap; }
+.firma { font-size: 15px; font-weight: 600; color: var(--leise); margin-bottom: 2px; }
+.befund .kopf { display:flex; justify-content:space-between; gap:12px; font-weight:600; color:var(--text); }
+.befund .id { color:var(--leise); font-weight:400; font-size:12px; white-space:nowrap; }
+.befund .status { font-size:13px; font-weight:600; }
+pre { background:var(--flaeche); padding:8px 10px; border-radius:4px; white-space:pre-wrap;
+      word-break:break-all; font-size:12.5px; margin: 8px 0; color:var(--text); }
+.anleitung { background:#eef4fb; border-radius:4px; padding:8px 10px; margin-top:8px; color:var(--text); }
+.quelle { font-size:12px; color:var(--leise); word-break:break-all; }
+.kopfzeile { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.logo { max-height: 56px; max-width: 200px; }
+footer { margin-top: 36px; border-top:1px solid var(--linie); padding-top: 10px;
+         color:var(--leise); font-size:12px; }
+.seitenumbruch { break-before: page; }
+@media print {
+  body { font-size: 11pt; } main { padding: 0; max-width: none; }
+  @page { size: A4; margin: 16mm 15mm; }
+  a { color: inherit; text-decoration: none; }
+}
+</style></head><body><main>
+<div class="kopfzeile"><div><div class="firma">Muster AG</div><h1><span class="domain">E-Mail-Sicherheit</span> von <span class="domain">muster-ag.example</span></h1></div>
+</div>
+<div class="meta">Geprüft am 12.11.2026 um 13:37 · E-Mail-Anbieter:
+Hostpoint · DNS-Anbieter:
+Cloudflare</div>
+
+<h2>Für die Geschäftsleitung</h2>
+<div class="urteil kritisch">
+  <div class="frage">Kann jemand in Ihrem Namen gefälschte E-Mails verschicken – z. B. Rechnungen
+  mit einer falschen Bankverbindung?</div>
+  <div class="antwort">NEIN. Jemand kann E-Mails mit Ihrer Absenderadresse verschicken (z. B. gefälschte Rechnungen) – und viele kommen im Posteingang an.</div>
+</div>
+<div class="zaehler">
+<span class="kritisch">✖ 1 × Sofort handeln</span>
+<span class="warnung">▲ 3 × Bald beheben</span>
+<span class="hinweis">● 4 × Bei Gelegenheit verbessern</span>
+<span class="ok">✔ 1 × In Ordnung</span>
+</div>
+<h2>Das ist zu tun</h2><ol class='todo'>
+<li class="kritisch"><span class="was">DMARC nur im Beobachtungsmodus (p=none): Fälschungen werden NICHT blockiert.</span><br><span class="meta">Sofort handeln · Zuständig: Ihr Informatiker oder Ihr Anbieter</span></li>
+<li class="warnung"><span class="was">Keine DMARC-Berichte (rua): Sie erfahren nicht, wer in Ihrem Namen E-Mails sendet.</span><br><span class="meta">Bald beheben · Zuständig: Ihr Informatiker oder Ihr Anbieter</span></li>
+<li class="warnung"><span class="was">Kein DKIM-Schlüssel unter gängigen Namen gefunden.</span><br><span class="meta">Bald beheben · Zuständig: Ihr Informatiker oder Ihr Anbieter</span></li>
+<li class="warnung"><span class="was">1 ähnliche Domain(s) können E-Mails senden/empfangen.</span><br><span class="meta">Bald beheben · Zuständig: Geschäftsleitung / Buchhaltung</span></li>
+</ol>
+<div class="regel"><h2>Regel für die Buchhaltung</h2>
+<p><strong>Eine neue Bankverbindung wird nie per E-Mail akzeptiert.</strong>
+Meldet ein Lieferant oder Kunde per E-Mail ein neues Konto: zurückrufen – mit der
+Telefonnummer, die Sie schon kennen (nicht mit der Nummer aus der E-Mail).</p>
+<p>Auch bei «dringend», «vertraulich» oder einer Anweisung «vom Chef»: erst anrufen, dann zahlen.</p>
+<p class="meta">Tipp: Diese Seite ausdrucken und in der Buchhaltung aufhängen.
+Betrugsfälle können Sie dem Bundesamt für Cybersicherheit (BACS) melden.</p></div>
+<div class="seitenumbruch"></div><h2>Technische Details</h2><p class="meta">Für Ihren Informatiker. Jeder Befund hat eine feste ID.</p>
+<div class="befund" style="--farbe:var(--kritisch)"><div class="kopf"><span>DMARC: DMARC nur im Beobachtungsmodus (p=none): Fälschungen werden NICHT blockiert.</span><span class="id">DMARC-P-NONE</span></div><div class="status">✖ Sofort handeln</div><pre>v=DMARC1; p=none</pre><div><strong>Empfehlung:</strong> Berichte (rua) auswerten, prüfen ob alle echten Versanddienste SPF/DKIM bestehen, dann p=quarantine und später p=reject setzen.</div></div>
+<div class="befund" style="--farbe:var(--warnung)"><div class="kopf"><span>DMARC: Keine DMARC-Berichte (rua): Sie erfahren nicht, wer in Ihrem Namen E-Mails sendet.</span><span class="id">DMARC-KEIN-RUA</span></div><div class="status">▲ Bald beheben</div><pre>v=DMARC1; p=none</pre><div><strong>Empfehlung:</strong> rua=mailto:dmarc@muster-ag.example ergänzen (eigene Adresse oder kostenloser DMARC-Auswertungsdienst). So sehen Sie Fälschungsversuche und Fehler.</div><div class="anleitung"><strong>So geht's bei Ihrem Anbieter:</strong> Über Cloudflare: Dashboard → Domain → «Email» &gt; «DMARC Management» → «Enable DMARC Management». Cloudflare ergänzt Ihren DMARC-Eintrag um eine eigene rua-Adresse und wertet die Berichte für Sie aus. Funktioniert nur für die Hauptdomain.<div class="quelle">Quelle: https://developers.cloudflare.com/dmarc-management/enable (geprüft 12.11.2026)</div></div></div>
+<div class="befund" style="--farbe:var(--warnung)"><div class="kopf"><span>DKIM: Kein DKIM-Schlüssel unter gängigen Namen gefunden.</span><span class="id">DKIM-NICHT-GEFUNDEN</span></div><div class="status">▲ Bald beheben</div><pre>Geprüft: 26 Selektoren. DKIM kann trotzdem eingerichtet sein (unbekannter Selektor).</pre><div><strong>Empfehlung:</strong> Eine E-Mail an sich selbst senden und im Header «DKIM-Signature: d=… s=…» nachsehen. Fehlt der Header: DKIM beim E-Mail-Anbieter aktivieren. Selektor bekannt? → pruefstand DOMAIN --dkim-selektor NAME</div><div class="anleitung"><strong>So geht's bei Ihrem Anbieter:</strong> Bei Hostpoint ist das zu erwarten: Der Selektor besteht aus Datum, Schlüsseltyp und Zufallszeichen (z. B. 20240131-rsa1024-9160ac53) und lässt sich nicht erraten. Seit Mai 2024 ist DKIM für Domains in einer Webhosting- oder Cloud-Office-Gruppe automatisch aktiv (drei Schlüssel: rsa1024, rsa2048, ed25519). Sonst im Control Panel unter «Enhanced protection» die Domain wählen und DKIM aktivieren. Prüfen: Header einer gesendeten E-Mail ansehen (DKIM-Signature: s=…), dann pruefstand DOMAIN --dkim-selektor &lt;s-Wert&gt;.<div class="quelle">Quelle: https://support.hostpoint.ch/en/technical/e-mail/e-mail-security/dkim (geprüft 12.11.2026)</div></div></div>
+<div class="befund" style="--farbe:var(--warnung)"><div class="kopf"><span>Ähnliche Domains: 1 ähnliche Domain(s) können E-Mails senden/empfangen.</span><span class="id">AEHNLICH-MIT-MAIL</span></div><div class="status">▲ Bald beheben</div><pre>rnuster-ag.example  (verwechselbares Zeichen)</pre><div><strong>Empfehlung:</strong> Prüfen, ob diese Domains Ihnen oder einer bekannten Firma gehören. Wenn nicht: Buchhaltung warnen (Kontowechsel IMMER per Rückruf bestätigen) und ggf. dem BACS melden. Wichtige Varianten (.ch/.com) selbst registrieren.</div></div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>SPF: SPF vorhanden, aber nur «weich» (~all).</span><span class="id">SPF-SOFTFAIL</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>v=spf1 include:spf.mail.hostpoint.ch include:_spf.buchhaltung.example ~all
+Fremde Server werden nur markiert, nicht abgelehnt. Mit einem strengen DMARC (quarantine/reject) ist das in Ordnung.</pre><div><strong>Empfehlung:</strong> Wenn alle Ihre Versanddienste im SPF stehen: ~all durch -all ersetzen.</div></div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>DNSSEC: DNSSEC nicht aktiviert.</span><span class="id">DNSSEC-AUS</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>DNS-Antworten könnten unterwegs gefälscht werden (z. B. Umleitung auf falsche Server).</pre><div><strong>Empfehlung:</strong> Beim DNS-Anbieter DNSSEC einschalten (bei Hostpoint, Infomaniak, Cloudflare meist ein Klick).</div></div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>CAA: Kein CAA-Eintrag: Jede Zertifizierungsstelle darf Zertifikate für Sie ausstellen.</span><span class="id">CAA-FEHLT</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>Geringes Risiko, aber einfach zu verbessern.</pre><div><strong>Empfehlung:</strong> CAA-Eintrag mit Ihrer Zertifizierungsstelle anlegen, z. B. «muster-ag.example. CAA 0 issue &quot;letsencrypt.org&quot;».</div></div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>Ähnliche Domains: 1 ähnliche Domain(s) registriert, derzeit ohne E-Mail.</span><span class="id">AEHNLICH-OHNE-MAIL</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>muster-ag-rechnung.example  (Zusatz)</pre><div><strong>Empfehlung:</strong> Beobachten: E-Mail kann jederzeit eingerichtet werden. Bei erneuter Prüfung zeigt pruefstand, ob sich etwas geändert hat.</div></div>
+<div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>MX: E-Mails werden angenommen von: Hostpoint</span><span class="id">MX-OK</span></div><div class="status">✔ In Ordnung</div><pre>Mailserver: mx1.mail.hostpoint.ch, mx2.mail.hostpoint.ch</pre></div>
+<div class="befund" style="--farbe:var(--info)"><div class="kopf"><span>NS: DNS wird verwaltet bei: Cloudflare – dort werden die Korrekturen gemacht.</span><span class="id">NS-ANBIETER</span></div><div class="status">ℹ Info</div><pre>Nameserver: anna.ns.cloudflare.com, bob.ns.cloudflare.com</pre></div>
+<footer>Erstellt mit pruefstand 1.0.0 – passiver Check: Es wurden nur öffentliche
+DNS-Daten abgefragt, ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
+12.11.2026 und ersetzt keine vollständige Sicherheitsprüfung.</footer>
+</main></body></html>
