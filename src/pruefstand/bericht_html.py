@@ -80,8 +80,14 @@ pre { background:var(--flaeche); padding:8px 10px; border-radius:4px; white-spac
 footer { margin-top: 36px; border-top:1px solid var(--linie); padding-top: 10px;
          color:var(--leise); font-size:12px; }
 .seitenumbruch { break-before: page; }
+.band { background:#0D1117; color:#e6edf3; box-shadow: inset 0 -3px 0 #ec0101;
+        display:flex; justify-content:space-between; gap:16px; margin: -32px -20px 24px;
+        padding: 11px 20px 13px; font-size:11.5px; font-weight:700; letter-spacing:.14em;
+        text-transform:uppercase; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.band span:last-child { color:#9fb0c0; }
 @media print {
   body { font-size: 11pt; } main { padding: 0; max-width: none; }
+  .band { margin: 0 0 20px; padding: 8px 10px 10px; }
   @page { size: A4; margin: 16mm 15mm; }
   a { color: inherit; text-decoration: none; }
 }
@@ -144,6 +150,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sicherheitsbericht {escape(erg.domain)}</title>
 <style>{CSS}</style></head><body><main>
+<div class="band"><span>Prüfprotokoll · E-Mail-Sicherheit</span><span>{escape(absender.name) if absender.name else "pruefstand"}</span></div>
 <div class="kopfzeile"><div>{titel_firma}<h1><span class="domain">E-Mail-Sicherheit</span> von <span class="domain">{escape(erg.domain)}</span></h1></div>
 {f'<img class="logo" alt="{escape(absender.name or "Logo")}" src="{escape(absender.logo_uri)}">' if absender.logo_uri else ""}</div>
 <div class="meta">Geprüft am {jetzt:%d.%m.%Y um %H:%M} · E-Mail-Anbieter:
