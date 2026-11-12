@@ -913,3 +913,38 @@ def test_befehl_bekommt_text_auf_stdin(tmp_path):
     ziel = tmp_path / "out.txt"
     benachrichtigung.fuehre_befehl_aus(f"tee {ziel}", "Änderung!")
     assert ziel.read_text(encoding="utf-8") == "Änderung!"
+
+
+# --- Subdomains --------------------------------------------------------------------------
+
+from pruefstand.pruefungen import subdomains  # noqa: E402
+
+
+def test_sub_dienst_erkennung():
+    assert subdomains.dienst_fuer("firma.azurewebsites.net.") == "Azure App Service"
+    assert subdomains.dienst_fuer("firma.s3-website-eu-west-1.amazonaws.com") == "AWS S3 Website"
+    assert subdomains.dienst_fuer("www.muster-ag.ch") is None
+
+
+def test_sub_verwaist_und_uebernehmbar():
+    d = FakeDns({
+        ("shop.muster-ag.ch", "CNAME"): ["muster.azurewebsites.net."],          # Ziel existiert nicht
+        ("alt.muster-ag.ch", "CNAME"): ["server.nicht-mehr.example."],         # Ziel existiert nicht
+        ("www.muster-ag.ch", "CNAME"): ["muster-ag.ch."],
+        ("muster-ag.ch", "A"): ["192.0.2.1"],
+    }, zone="muster-ag.ch")
+    ids_ = {b.id: b for b in subdomains.pruefe(d, "muster-ag.ch")}
+    assert "shop.muster-ag.ch" in ids_["SUB-UEBERNEHMBAR"].detail
+    assert "alt.muster-ag.ch" in ids_["SUB-VERWAIST"].detail
+    assert ids_["SUB-UEBERNEHMBAR"].status == Status.KRITISCH
+
+
+def test_sub_fingerabdruck():
+    d = FakeDns({("docs.muster-ag.ch", "CNAME"): ["muster.github.io."], ("muster.github.io", "A"): ["185.199.108.153"]},
+                zone="muster-ag.ch")
+    netz = FakeNetz({"https://docs.muster-ag.ch/": Antwort(404, "", {}, "<h1>404</h1> There isn't a GitHub Pages site here.")})
+    assert "SUB-DIENST-FREI" in ids(subdomains.pruefe(d, "muster-ag.ch", netz))
+
+
+def test_sub_alles_ok():
+    assert ids(subdomains.pruefe(FakeDns({}), "muster-ag.ch")) == {"SUB-OK"}

@@ -58,7 +58,8 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
         raise ValueError(f"Die Domain {domain} existiert nicht.")
     netz = Netz() if (not args.ohne_web or args.online_quellen) else None
     erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche, netz,
-                        online_quellen=args.online_quellen, web=not args.ohne_web)
+                        online_quellen=args.online_quellen, web=not args.ohne_web,
+                        subdomains_suchen=not args.ohne_subdomains)
     anleitungen.ergaenze(erg)
     erg.setze_sprache(args.sprache)
     if not args.ohne_verlauf:
@@ -87,6 +88,8 @@ def _parser() -> argparse.ArgumentParser:
                    help="Suche nach ähnlichen Domains überspringen (schneller)")
     p.add_argument("--ohne-web", action="store_true",
                    help="nur DNS: Webseite und MTA-STS-Richtlinie nicht abrufen")
+    p.add_argument("--ohne-subdomains", action="store_true",
+                   help="Suche nach verwaisten Subdomains überspringen")
     p.add_argument("--online-quellen", action="store_true",
                    help="ähnliche Domains zusätzlich bei RDAP (Registrierdatum) und crt.sh "
                         "(Zertifikate) nachschlagen – sendet diese Domainnamen an externe Dienste; langsam (1–3 Min.)")

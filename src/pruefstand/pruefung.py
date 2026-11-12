@@ -8,7 +8,7 @@ from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz
 from pruefstand.sprache import fuer
-from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, web
+from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, subdomains, web
 
 
 @dataclass
@@ -85,6 +85,7 @@ PRUEFUNGEN = [
     ("DNSSEC", dnssec.pruefe, False),
     ("CAA", caa.pruefe, False),
     ("DNSBL", dnsbl.pruefe, False),
+    ("SUB", subdomains.pruefe, False),
     ("MTASTS", mta_sts.pruefe, True),
     ("WEB", web.pruefe, True),
     ("AEHNLICH", aehnliche.pruefe, False),
@@ -95,12 +96,15 @@ ZUSATZ_GRUPPEN = {"MTASTS": ["TLSRPT"]}
 
 def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = None,
                   aehnliche_suchen: bool = True, netz: Netz | None = None,
-                  online_quellen: bool = False, web: bool = True) -> Ergebnis:
+                  online_quellen: bool = False, web: bool = True,
+                  subdomains_suchen: bool = True) -> Ergebnis:
     """netz=None → nur DNS (keine Verbindung zur Webseite).
     online_quellen → ähnliche Domains zusätzlich über RDAP/crt.sh nachschlagen (braucht netz)."""
     erg = Ergebnis(domain)
     for name, funktion, braucht_netz in PRUEFUNGEN:
         if name == "AEHNLICH" and not aehnliche_suchen:
+            continue
+        if name == "SUB" and not subdomains_suchen:
             continue
         if braucht_netz and (netz is None or not web):
             continue
@@ -108,6 +112,9 @@ def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = Non
         try:
             if name == "DKIM":
                 erg.befunde += dkim.pruefe(dns, domain, dkim_selektoren)
+            elif name == "SUB":
+                erg.befunde += subdomains.pruefe(dns, domain, netz if web else None,
+                                                 netz if online_quellen else None)
             elif name == "AEHNLICH":
                 erg.befunde += aehnliche.pruefe(dns, domain, netz if online_quellen else None)
             elif braucht_netz:
