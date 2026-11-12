@@ -71,8 +71,8 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
         if b.anleitung:
             c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {b.anleitung}")
             c.print(f"[dim]Quelle: {b.quelle}[/dim]")
-    c.print("\n[dim]Passiver Check: nur öffentliche DNS-Daten, keine Daten verlassen Ihren PC "
-            "ausser den DNS-Abfragen.[/dim]")
+    c.print("\n[dim]Passiver Check: öffentliche DNS-Daten und ein normaler Aufruf der Webseite – "
+            "kein Scan, kein Zugriff auf Ihre Systeme.[/dim]")
 
 
 def _aenderungen(c: Console, a) -> None:

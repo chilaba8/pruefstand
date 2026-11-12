@@ -14,6 +14,7 @@ from pruefstand import __version__, anleitungen, bericht, bericht_html, liste, v
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
+from pruefstand.netz import Netz
 from pruefstand.pruefung import Ergebnis, pruefe_domain
 
 # Rückgabewerte (praktisch für Skripte/CI)
@@ -53,7 +54,8 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
     """Prüft eine Domain. Wirft ValueError, wenn sie nicht existiert, DnsFehler bei DNS-Problemen."""
     if not dns.existiert(domain):
         raise ValueError(f"Die Domain {domain} existiert nicht.")
-    erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche)
+    erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche,
+                        None if args.ohne_web else Netz())
     anleitungen.ergaenze(erg)
     if not args.ohne_verlauf:
         v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
@@ -79,6 +81,8 @@ def _parser() -> argparse.ArgumentParser:
                    help="zusätzlichen DKIM-Selektor prüfen (mehrfach möglich)")
     p.add_argument("--ohne-aehnliche", action="store_true",
                    help="Suche nach ähnlichen Domains überspringen (schneller)")
+    p.add_argument("--ohne-web", action="store_true",
+                   help="nur DNS: Webseite und MTA-STS-Richtlinie nicht abrufen")
     p.add_argument("--verlauf", metavar="ORDNER",
                    help="Ordner für frühere Ergebnisse (Standard: ~/.local/share/pruefstand/verlauf)")
     p.add_argument("--ohne-verlauf", action="store_true",

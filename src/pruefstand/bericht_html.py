@@ -177,7 +177,7 @@ Betrugsfälle können Sie dem Bundesamt für Cybersicherheit (BACS) melden.</p><
     h += [_befund_html(b) for b in sorted(erg.befunde, key=lambda b: -b.status)]
     von = f"Erstellt von {escape(absender.name)} mit" if absender.name else "Erstellt mit"
     h.append(f"""<footer>{von} pruefstand {__version__} – passiver Check: Es wurden nur öffentliche
-DNS-Daten abgefragt, ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
+DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 {jetzt:%d.%m.%Y} und ersetzt keine vollständige Sicherheitsprüfung.</footer>
 </main></body></html>""")
     return "\n".join(h)

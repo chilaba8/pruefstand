@@ -136,5 +136,5 @@ dringendste zuerst</div>
 <table><thead><tr><th>Domain</th><th>Firma</th><th>Fälschungsschutz</th>
 <th>{TEXT[Status.KRITISCH]} / {TEXT[Status.WARNUNG]} / {TEXT[Status.HINWEIS]}</th><th>Seit letzter Prüfung</th><th>Bericht</th></tr></thead>
 <tbody>{''.join(reihen)}</tbody></table>
-<footer>{von} pruefstand {__version__} – passiver Check, nur öffentliche DNS-Daten.</footer>
+<footer>{von} pruefstand {__version__} – passiver Check: öffentliche DNS-Daten und normaler Aufruf der Webseiten.</footer>
 </main></body></html>"""

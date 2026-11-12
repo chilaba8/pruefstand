@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
-from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnssec, mx, ns, spf
+from pruefstand.netz import Netz
+from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnssec, mta_sts, mx, ns, spf, web
 
 
 @dataclass
@@ -59,28 +60,38 @@ class Ergebnis:
         return Status.OK, "JA. Gefälschte E-Mails mit Ihrer Adresse werden abgewiesen."
 
 
+# (Name = Präfix der Befund-IDs, Funktion, braucht Netz?)
 PRUEFUNGEN = [
-    ("NS", ns.pruefe),
-    ("MX", mx.pruefe),
-    ("SPF", spf.pruefe),
-    ("DMARC", dmarc.pruefe),
-    ("DKIM", dkim.pruefe),
-    ("DNSSEC", dnssec.pruefe),
-    ("CAA", caa.pruefe),
-    ("AEHNLICH", aehnliche.pruefe),
+    ("NS", ns.pruefe, False),
+    ("MX", mx.pruefe, False),
+    ("SPF", spf.pruefe, False),
+    ("DMARC", dmarc.pruefe, False),
+    ("DKIM", dkim.pruefe, False),
+    ("DNSSEC", dnssec.pruefe, False),
+    ("CAA", caa.pruefe, False),
+    ("MTASTS", mta_sts.pruefe, True),
+    ("WEB", web.pruefe, True),
+    ("AEHNLICH", aehnliche.pruefe, False),
 ]
+# Prüfungen, die Befunde mit weiteren Präfixen liefern (für den Verlauf-Vergleich)
+ZUSATZ_GRUPPEN = {"MTASTS": ["TLSRPT"]}
 
 
 def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = None,
-                  aehnliche_suchen: bool = True) -> Ergebnis:
+                  aehnliche_suchen: bool = True, netz: Netz | None = None) -> Ergebnis:
+    """netz=None → nur DNS (keine Verbindung zur Webseite)."""
     erg = Ergebnis(domain)
-    for name, funktion in PRUEFUNGEN:
+    for name, funktion, braucht_netz in PRUEFUNGEN:
         if name == "AEHNLICH" and not aehnliche_suchen:
             continue
-        erg.ausgefuehrt.append(name)
+        if braucht_netz and netz is None:
+            continue
+        erg.ausgefuehrt += [name] + ZUSATZ_GRUPPEN.get(name, [])
         try:
             if name == "DKIM":
                 erg.befunde += dkim.pruefe(dns, domain, dkim_selektoren)
+            elif braucht_netz:
+                erg.befunde += funktion(dns, domain, netz)
             else:
                 erg.befunde += funktion(dns, domain)
         except DnsFehler as e:

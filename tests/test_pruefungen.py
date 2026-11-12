@@ -408,3 +408,114 @@ def test_verlauf_speichern_und_lesen(tmp_path):
     v.speichere("beispiel.ch", '{"zeitpunkt": "x"}')
     (tmp_path / "beispiel.ch" / "9999-kaputt.json").write_text("{kaputt", encoding="utf-8")
     assert v.letzter("beispiel.ch") == {"zeitpunkt": "x"}       # kaputte Datei übersprungen
+
+
+# --- MTA-STS / TLS-RPT / Web (mit FakeNetz) ----------------------------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from pruefstand.netz import Antwort, NetzFehler, Zertifikat  # noqa: E402
+from pruefstand.pruefungen import mta_sts, web  # noqa: E402
+
+JETZT = datetime(2026, 11, 12, tzinfo=timezone.utc)
+
+
+class FakeNetz:
+    def __init__(self, seiten=None, zert=None):
+        self.seiten = seiten or {}      # url → Antwort oder NetzFehler
+        self.zert = zert
+
+    def hole(self, url, weiterleiten=True):
+        a = self.seiten.get(url)
+        if a is None or isinstance(a, NetzFehler):
+            raise a or NetzFehler(url)
+        return a
+
+    def zertifikat(self, host, port=443):
+        if isinstance(self.zert, NetzFehler):
+            raise self.zert
+        return self.zert
+
+
+MX_DATEN = {("beispiel.ch", "MX"): ["10 mx1.mail.anbieter.ch.", "20 mx2.mail.anbieter.ch."]}
+POLICY_URL = "https://mta-sts.beispiel.ch/.well-known/mta-sts.txt"
+
+
+def _sts(policy_text, extra=None):
+    d = {**MX_DATEN, ("_mta-sts.beispiel.ch", "TXT"): ["v=STSv1; id=2026111201"], **(extra or {})}
+    netz = FakeNetz({POLICY_URL: Antwort(200, POLICY_URL, {}, policy_text)})
+    return ids(mta_sts.pruefe(FakeDns(d), "beispiel.ch", netz))
+
+
+def test_mx_muster():
+    assert mta_sts.mx_passt("mx1.mail.anbieter.ch", "*.mail.anbieter.ch")
+    assert not mta_sts.mx_passt("a.b.mail.anbieter.ch", "*.mail.anbieter.ch")   # nur EIN Label
+    assert mta_sts.mx_passt("MX1.Mail.Anbieter.CH.", "mx1.mail.anbieter.ch")
+
+
+def test_mta_sts_fehlt_und_ohne_mx():
+    assert ids(mta_sts.pruefe(FakeDns(MX_DATEN), "beispiel.ch", FakeNetz())) == {"MTASTS-FEHLT"}
+    assert mta_sts.pruefe(FakeDns({}), "beispiel.ch", FakeNetz()) == []
+
+
+def test_mta_sts_enforce_ok():
+    tls = {("_smtp._tls.beispiel.ch", "TXT"): ["v=TLSRPTv1; rua=mailto:t@beispiel.ch"]}
+    assert _sts("version: STSv1\nmode: enforce\nmx: *.mail.anbieter.ch\nmax_age: 604800", tls) \
+        == {"MTASTS-OK", "TLSRPT-OK"}
+
+
+def test_mta_sts_enforce_mx_passt_nicht_ist_kritisch():
+    assert "MTASTS-MX-PASST-NICHT" in _sts("version: STSv1\nmode: enforce\nmx: mx1.mail.anbieter.ch\nmax_age: 1")
+
+
+def test_mta_sts_richtlinie_fehlt():
+    d = {**MX_DATEN, ("_mta-sts.beispiel.ch", "TXT"): ["v=STSv1; id=1"]}
+    assert "MTASTS-RICHTLINIE-FEHLT" in ids(mta_sts.pruefe(FakeDns(d), "beispiel.ch", FakeNetz()))
+
+
+WEB_DNS = {("beispiel.ch", "A"): ["192.0.2.1"]}
+
+
+def _web(seiten, zert):
+    return ids(web.pruefe(FakeDns(WEB_DNS), "beispiel.ch", FakeNetz(seiten, zert), JETZT))
+
+
+GUTE_SEITEN = {
+    "http://beispiel.ch/": Antwort(301, "http://beispiel.ch/", {"location": "https://beispiel.ch/"}),
+    "https://beispiel.ch/": Antwort(200, "https://beispiel.ch/", {
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+        "x-content-type-options": "nosniff", "referrer-policy": "same-origin", "server": "nginx"}),
+    "https://beispiel.ch/.well-known/security.txt": Antwort(200, "", {}, "Contact: mailto:s@beispiel.ch"),
+}
+
+
+def test_web_alles_gut():
+    assert _web(GUTE_SEITEN, Zertifikat(JETZT + timedelta(days=60), "Let's Encrypt")) == {
+        "WEB-ZERT-OK", "WEB-HTTPS-WEITERLEITUNG-OK", "WEB-HSTS-OK", "WEB-HEADER-OK", "WEB-SECURITYTXT-OK"}
+
+
+def test_web_zertifikat_laeuft_ab_und_abgelaufen():
+    assert "WEB-ZERT-LAEUFT-AB" in _web(GUTE_SEITEN, Zertifikat(JETZT + timedelta(days=5), "X"))
+    assert "WEB-ZERT-ABGELAUFEN" in _web(GUTE_SEITEN, Zertifikat(JETZT - timedelta(days=2), "X"))
+    assert "WEB-ZERT-UNGUELTIG" in _web(GUTE_SEITEN, Zertifikat(None, "", "self signed"))
+
+
+def test_web_schwache_konfiguration():
+    seiten = {"http://beispiel.ch/": Antwort(200, "http://beispiel.ch/", {}),
+              "https://beispiel.ch/": Antwort(200, "https://beispiel.ch/",
+                                              {"server": "Apache/2.4.41 (Ubuntu)",
+                                               "strict-transport-security": "max-age=300"})}
+    assert _web(seiten, Zertifikat(JETZT + timedelta(days=60), "X")) == {
+        "WEB-ZERT-OK", "WEB-KEINE-HTTPS-WEITERLEITUNG", "WEB-HSTS-FEHLT", "WEB-HEADER-FEHLEN",
+        "WEB-VERSION-SICHTBAR", "WEB-SECURITYTXT-FEHLT"}
+
+
+def test_web_keine_webseite_und_nicht_erreichbar():
+    assert ids(web.pruefe(FakeDns({}), "beispiel.ch", FakeNetz(), JETZT)) == {"WEB-KEINE"}
+    assert _web({}, NetzFehler("timeout")) == {"WEB-NICHT-ERREICHBAR"}
+
+
+def test_ohne_netz_keine_web_pruefung():
+    erg = pruefe_domain(FakeDns(WEB_DNS), "beispiel.ch", aehnliche_suchen=False, netz=None)
+    assert "WEB" not in erg.ausgefuehrt and not any(b.id.startswith("WEB") for b in erg.befunde)
