@@ -1,0 +1,12 @@
+# ~/.config/systemd/user/pruefstand.timer
+# Aktivieren: systemctl --user daemon-reload && systemctl --user enable --now pruefstand.timer
+[Unit]
+Description=pruefstand monatlich
+
+[Timer]
+OnCalendar=monthly
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

@@ -811,3 +811,105 @@ def test_rua_zip_bombe(tmp_path, monkeypatch):
         z.writestr("gross.xml", b"<feedback>" + b" " * 100000 + b"</feedback>")
     aus = dmarc_berichte.lies_alle([tmp_path])
     assert aus.dateien == 0 and "zu gross" in aus.fehler[0]
+
+
+# --- Benachrichtigung -------------------------------------------------------------------
+
+from pruefstand import benachrichtigung  # noqa: E402
+
+
+def _erg_mit(aend):
+    e = Ergebnis("muster-ag.ch", [Befund("DMARC-REJECT", "DMARC", Status.OK, "t")], ["DMARC"])
+    e.aenderungen = aend
+    return e
+
+
+def test_benachrichtigung_text():
+    a = verlauf.Aenderungen("2026-10-12T09:00:00+02:00",
+                            neu=[{"id": "WEB-ZERT-LAEUFT-AB", "titel": "Zertifikat läuft in 9 Tagen ab",
+                                  "status": "WARNUNG"}], neue_aehnliche=["mu5ter-ag.ch"])
+    text = benachrichtigung.text_fuer([_erg_mit(a), _erg_mit(verlauf.Aenderungen("2026-10-12"))])
+    assert "muster-ag.ch (seit 12.10.2026)" in text and "Zertifikat läuft" in text and "mu5ter-ag.ch" in text
+    assert text.count("•") == 1                    # unveränderte Domain wird nicht gemeldet
+
+
+def test_benachrichtigung_nichts_zu_melden():
+    assert benachrichtigung.text_fuer([_erg_mit(None), _erg_mit(verlauf.Aenderungen("x"))]) is None
+    assert "erste Prüfung" in benachrichtigung.text_fuer([_erg_mit(None)], immer=True)
+
+
+class _Antwort:
+    def __init__(self, body):
+        self.body = body
+
+    def read(self):
+        return self.body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_telegram_simuliert(monkeypatch):
+    monkeypatch.setenv("PRUEFSTAND_TELEGRAM_TOKEN", "123:GEHEIM")
+    monkeypatch.setenv("PRUEFSTAND_TELEGRAM_CHAT", "42")
+    gesendet = {}
+
+    def oeffner(req, timeout):
+        gesendet["url"], gesendet["daten"] = req.full_url, req.data
+        return _Antwort(b'{"ok": true}')
+    benachrichtigung.sende_telegram("Hallo", oeffner)
+    assert gesendet["url"].endswith("/bot123:GEHEIM/sendMessage") and b"chat_id=42" in gesendet["daten"]
+
+
+def test_telegram_fehler_verraet_token_nicht(monkeypatch):
+    monkeypatch.setenv("PRUEFSTAND_TELEGRAM_TOKEN", "123:GEHEIM")
+    monkeypatch.setenv("PRUEFSTAND_TELEGRAM_CHAT", "42")
+
+    def oeffner(req, timeout):
+        raise OSError(f"kaputt bei {req.full_url}")
+    with pytest.raises(benachrichtigung.BenachrichtigungsFehler) as e:
+        benachrichtigung.sende_telegram("x", oeffner)
+    assert "GEHEIM" not in str(e.value)
+
+
+def test_telegram_ohne_token(monkeypatch):
+    monkeypatch.delenv("PRUEFSTAND_TELEGRAM_TOKEN", raising=False)
+    assert "PRUEFSTAND_TELEGRAM_TOKEN" in benachrichtigung.sende("x", ["telegram"])[0]
+
+
+def test_email_simuliert(monkeypatch):
+    for k, v in {"PRUEFSTAND_SMTP_HOST": "smtp.beispiel.ch", "PRUEFSTAND_SMTP_VON": "a@beispiel.ch",
+                 "PRUEFSTAND_SMTP_AN": "b@beispiel.ch", "PRUEFSTAND_SMTP_USER": "a",
+                 "PRUEFSTAND_SMTP_PASS": "pw"}.items():
+        monkeypatch.setenv(k, v)
+    protokoll = []
+
+    class FakeSmtp:
+        def __init__(self, host, port, timeout):
+            protokoll.append(("verbinde", host, port))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self, context):
+            protokoll.append("starttls")
+
+        def login(self, u, p):
+            protokoll.append("login")
+
+        def send_message(self, m):
+            protokoll.append(("sende", m["To"]))
+    benachrichtigung.sende_email("Text", FakeSmtp)
+    assert protokoll == [("verbinde", "smtp.beispiel.ch", 587), "starttls", "login", ("sende", "b@beispiel.ch")]
+
+
+def test_befehl_bekommt_text_auf_stdin(tmp_path):
+    ziel = tmp_path / "out.txt"
+    benachrichtigung.fuehre_befehl_aus(f"tee {ziel}", "Änderung!")
+    assert ziel.read_text(encoding="utf-8") == "Änderung!"

@@ -1,0 +1,11 @@
+# ~/.config/systemd/user/pruefstand.service
+# Zugangsdaten in ~/.config/pruefstand/env (chmod 600), z. B.:
+#   PRUEFSTAND_TELEGRAM_TOKEN=123456:ABC...
+#   PRUEFSTAND_TELEGRAM_CHAT=123456789
+[Unit]
+Description=pruefstand – monatliche Prüfung der Kunden-Domains
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/pruefstand/env
+ExecStart=%h/.local/bin/pruefstand --liste %h/.config/pruefstand/kunden.txt --ordner %h/pruefstand-berichte --mit-pdf --benachrichtigen telegram

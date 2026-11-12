@@ -10,8 +10,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-from pruefstand import (__version__, anleitungen, bericht, bericht_html, dmarc_berichte, liste,
-                        mailpruefung, verlauf)
+from pruefstand import (__version__, anleitungen, bericht, bericht_html, benachrichtigung,
+                        dmarc_berichte, liste, mailpruefung, verlauf)
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
@@ -117,6 +117,15 @@ def _parser() -> argparse.ArgumentParser:
     rua.add_argument("--dmarc-berichte", metavar="ORDNER", nargs="+",
                      help="Ordner oder Dateien mit DMARC-Berichten (.xml, .gz, .zip)")
 
+    ueb = p.add_argument_group("Überwachung (z. B. monatlich per Timer/Cron)")
+    ueb.add_argument("--benachrichtigen", choices=benachrichtigung.KANAELE, action="append", default=[],
+                     help="bei Änderungen per telegram oder email melden (Zugangsdaten über "
+                          "Umgebungsvariablen, siehe README)")
+    ueb.add_argument("--bei-aenderung", metavar="BEFEHL",
+                     help="bei Änderungen diesen Befehl ausführen (Nachricht auf stdin)")
+    ueb.add_argument("--immer-melden", action="store_true",
+                     help="auch melden, wenn sich nichts geändert hat")
+
     marke = p.add_argument_group("eigenes Logo (für IT-Dienstleister)")
     marke.add_argument("--absender", metavar="NAME", help="Ihr Firmenname im Bericht")
     marke.add_argument("--logo", metavar="DATEI", help="Ihr Logo (PNG/JPG/SVG/WebP, max. 500 KB)")
@@ -214,7 +223,21 @@ def _einzeln(dns: Dns, args, absender: Absender) -> int:
             except (RuntimeError, OSError, subprocess.SubprocessError) as e:
                 print(f"Fehler beim PDF: {e}", file=sys.stderr)
                 return EXIT_FEHLER
+    _melden(args, [erg])
     return _exit_code(erg.schlimmster)
+
+
+def _melden(args, ergebnisse: list) -> None:
+    if not (args.benachrichtigen or args.bei_aenderung):
+        return
+    if args.ohne_verlauf:
+        print("Warnung: Ohne Verlauf gibt es keine Änderungen zu melden.", file=sys.stderr)
+    text = benachrichtigung.text_fuer(ergebnisse, args.immer_melden)
+    if text is None:
+        print("Keine Änderungen – keine Benachrichtigung.", file=sys.stderr)
+        return
+    for f in benachrichtigung.sende(text, args.benachrichtigen, args.bei_aenderung):
+        print(f"Warnung: Benachrichtigung fehlgeschlagen – {f}", file=sys.stderr)
 
 
 def _liste(dns: Dns, args, absender: Absender) -> int:
@@ -255,6 +278,7 @@ def _liste(dns: Dns, args, absender: Absender) -> int:
     liste.schreibe_csv(zeilen, ordner / "uebersicht.csv")
     console.print(f"\nÜbersicht: {ordner / 'uebersicht.html'}  ·  Excel: {ordner / 'uebersicht.csv'}")
 
+    _melden(args, [z.ergebnis for z in zeilen if z.ergebnis])
     if any(z.fehler for z in zeilen):
         return EXIT_FEHLER
     return _exit_code(max(z.ergebnis.schlimmster for z in zeilen if z.ergebnis))
