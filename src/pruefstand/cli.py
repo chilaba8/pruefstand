@@ -15,6 +15,7 @@ from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
 from pruefstand.netz import Netz
+from pruefstand.sprache import SPRACHEN
 from pruefstand.pruefung import Ergebnis, pruefe_domain
 
 # Rückgabewerte (praktisch für Skripte/CI)
@@ -58,6 +59,7 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
     erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche, netz,
                         online_quellen=args.online_quellen, web=not args.ohne_web)
     anleitungen.ergaenze(erg)
+    erg.setze_sprache(args.sprache)
     if not args.ohne_verlauf:
         v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
         vorher = v.letzter(domain)
@@ -109,6 +111,8 @@ def _parser() -> argparse.ArgumentParser:
     marke.add_argument("--absender", metavar="NAME", help="Ihr Firmenname im Bericht")
     marke.add_argument("--logo", metavar="DATEI", help="Ihr Logo (PNG/JPG/SVG/WebP, max. 500 KB)")
 
+    p.add_argument("--sprache", choices=SPRACHEN, default="de-CH",
+                   help="Rechtschreibung: de-CH (ss, «») oder de-DE (ß, „“). Standard: de-CH")
     p.add_argument("--version", action="version", version=f"pruefstand {__version__}")
     return p
 
@@ -195,7 +199,7 @@ def _liste(dns: Dns, args, absender: Absender) -> int:
         zeilen.append(zeile)
 
     mit_pdf = args.mit_pdf and all(z.fehler is None or "PDF" not in z.fehler for z in zeilen)
-    (ordner / "uebersicht.html").write_text(liste.uebersicht_html(zeilen, mit_pdf, absender), encoding="utf-8")
+    (ordner / "uebersicht.html").write_text(liste.uebersicht_html(zeilen, mit_pdf, absender, args.sprache), encoding="utf-8")
     liste.schreibe_csv(zeilen, ordner / "uebersicht.csv")
     console.print(f"\nÜbersicht: {ordner / 'uebersicht.html'}  ·  Excel: {ordner / 'uebersicht.csv'}")
 

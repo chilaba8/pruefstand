@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz
+from pruefstand.sprache import fuer
 from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, web
 
 
@@ -16,6 +17,16 @@ class Ergebnis:
     befunde: list[Befund] = field(default_factory=list)
     ausgefuehrt: list[str] = field(default_factory=list)   # welche Prüfungen liefen (für Vergleich)
     aenderungen: object | None = None                      # verlauf.Aenderungen, falls Vorbericht da
+    sprache: str = "de-CH"                                 # de-CH (ss, «») oder de-DE (ß, „“)
+
+    def setze_sprache(self, sprache: str) -> None:
+        """Wandelt alle Befundtexte um (DNS-Rohdaten in detail bleiben unberührt, siehe sprache.py)."""
+        self.sprache = sprache
+        for b in self.befunde:
+            b.titel = fuer(b.titel, sprache)
+            b.detail = fuer(b.detail, sprache)
+            b.empfehlung = fuer(b.empfehlung, sprache)
+            b.anleitung = fuer(b.anleitung, sprache)
 
     @property
     def schlimmster(self) -> Status:
@@ -40,6 +51,10 @@ class Ergebnis:
 
     @property
     def faelschungsschutz(self) -> tuple[Status, str]:
+        status, satz = self._faelschungsschutz()
+        return status, fuer(satz, self.sprache)
+
+    def _faelschungsschutz(self) -> tuple[Status, str]:
         """Die Kernfrage für die Geschäftsleitung: Kann man in Ihrem Namen E-Mails fälschen?"""
         # Zuerst: Konnten wir überhaupt prüfen? Lieber «unbekannt» als ein falsches «JA».
         if self.hat("DMARC-DNS-FEHLER") or self.hat("SPF-DNS-FEHLER"):

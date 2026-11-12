@@ -614,3 +614,32 @@ def test_online_quellen_fehler_bricht_nichts():
     befunde = ids(aehnliche.pruefe(d, "muster-ag.ch", FakeNetz(), JETZT))   # alles NetzFehler
     assert befunde == {"AEHNLICH-MIT-MAIL"}
     aehnliche._rdap_basis = None
+
+
+# --- de-CH / de-DE ---------------------------------------------------------------
+
+from pruefstand import sprache  # noqa: E402
+
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("Logo zu gross (600 KB)", "Logo zu groß (600 KB)"),
+    ("Echte E-Mails landen ausserdem im Spam.", "Echte E-Mails landen außerdem im Spam."),
+    ("weiss nicht, wem", "weiß nicht, wem"),
+    ("ist das zu gross.", "ist das zu groß."),                        # Satzende
+    ("Domain gross.ch und info@gross.ch", "Domain gross.ch und info@gross.ch"),   # Domains nie
+    ("https://x.ch/gross/ und gross-bau.ch", "https://x.ch/gross/ und gross-bau.ch"),
+    ("data:image/png;base64,AB/gross+CD=", "data:image/png;base64,AB/gross+CD="),  # Logo nie
+    ("muss den Schlüssel", "muss den Schlüssel"),                    # bleibt ss
+    ("im Menü «DMARC policy»", "im Menü „DMARC policy“"),
+])
+def test_de_de(text, erwartet):
+    assert sprache.fuer(text, "de-DE") == erwartet
+    assert sprache.fuer(text, "de-CH") == text
+
+
+def test_html_de_de():
+    erg = Ergebnis("beispiel.ch", [Befund("DMARC-FEHLT", "DMARC", Status.KRITISCH, "t",
+                                          empfehlung="ausserdem «x»")])
+    erg.setze_sprache("de-DE")
+    html = bericht_html.erzeuge(erg)
+    assert 'lang="de-DE"' in html and "außerdem „x“" in html and "«" not in html

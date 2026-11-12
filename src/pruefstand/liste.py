@@ -20,6 +20,7 @@ from pruefstand.absender import Absender
 from pruefstand.bericht_html import CSS, FARBE, SYMBOL, TEXT
 from pruefstand.modell import Status
 from pruefstand.pruefung import Ergebnis
+from pruefstand.sprache import fuer
 
 
 @dataclass
@@ -95,7 +96,7 @@ def _aend_kurz(e: Ergebnis) -> str:
     return " · ".join(teile)
 
 
-def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender) -> str:
+def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender, sprache: str = "de-CH") -> str:
     def sortierung(z: Zeile):
         return (-(z.ergebnis.schlimmster if z.ergebnis else 5), z.eintrag.domain)
 
@@ -121,8 +122,8 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender) -> s
     logo = (f'<img class="logo" alt="Logo" src="{escape(absender.logo_uri)}">'
             if absender.logo_uri else "")
     von = f"Erstellt von {escape(absender.name)} mit" if absender.name else "Erstellt mit"
-    return f"""<!doctype html>
-<html lang="de-CH"><head><meta charset="utf-8">
+    return fuer(f"""<!doctype html>
+<html lang="{sprache}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Übersicht E-Mail-Sicherheit</title>
 <style>{CSS}
@@ -137,4 +138,4 @@ dringendste zuerst</div>
 <th>{TEXT[Status.KRITISCH]} / {TEXT[Status.WARNUNG]} / {TEXT[Status.HINWEIS]}</th><th>Seit letzter Prüfung</th><th>Bericht</th></tr></thead>
 <tbody>{''.join(reihen)}</tbody></table>
 <footer>{von} pruefstand {__version__} – passiver Check: öffentliche DNS-Daten und normaler Aufruf der Webseiten.</footer>
-</main></body></html>"""
+</main></body></html>""", sprache)

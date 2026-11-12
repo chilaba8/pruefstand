@@ -19,6 +19,7 @@ from pruefstand.absender import Absender
 from pruefstand.modell import Befund, Status
 from pruefstand.pruefung import Ergebnis
 from pruefstand import vergleich_ch
+from pruefstand.sprache import fuer
 
 FARBE = {Status.OK: "ok", Status.HINWEIS: "hinweis", Status.WARNUNG: "warnung",
          Status.KRITISCH: "kritisch", Status.INFO: "info"}
@@ -133,7 +134,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
     titel_firma = f'<div class="firma">{escape(firma)}</div>' if firma else ""
 
     h = [f"""<!doctype html>
-<html lang="de-CH"><head><meta charset="utf-8">
+<html lang="{erg.sprache}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sicherheitsbericht {escape(erg.domain)}</title>
 <style>{CSS}</style></head><body><main>
@@ -194,7 +195,7 @@ Betrugsfälle können Sie dem Bundesamt für Cybersicherheit (BACS) melden.</p><
 DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 {jetzt:%d.%m.%Y} und ersetzt keine vollständige Sicherheitsprüfung.</footer>
 </main></body></html>""")
-    return "\n".join(h)
+    return fuer("\n".join(h), erg.sprache)
 
 
 def finde_browser() -> str | None:
