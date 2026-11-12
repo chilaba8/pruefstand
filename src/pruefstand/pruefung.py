@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz
-from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnssec, mta_sts, mx, ns, spf, web
+from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, web
 
 
 @dataclass
@@ -69,6 +69,7 @@ PRUEFUNGEN = [
     ("DKIM", dkim.pruefe, False),
     ("DNSSEC", dnssec.pruefe, False),
     ("CAA", caa.pruefe, False),
+    ("DNSBL", dnsbl.pruefe, False),
     ("MTASTS", mta_sts.pruefe, True),
     ("WEB", web.pruefe, True),
     ("AEHNLICH", aehnliche.pruefe, False),

@@ -519,3 +519,33 @@ def test_web_keine_webseite_und_nicht_erreichbar():
 def test_ohne_netz_keine_web_pruefung():
     erg = pruefe_domain(FakeDns(WEB_DNS), "beispiel.ch", aehnliche_suchen=False, netz=None)
     assert "WEB" not in erg.ausgefuehrt and not any(b.id.startswith("WEB") for b in erg.befunde)
+
+
+# --- DNSBL ---------------------------------------------------------------------
+
+from pruefstand.pruefungen import dnsbl  # noqa: E402
+
+
+
+def test_dnsbl_ips_nur_einzelne_und_oeffentliche():
+    # 203.0.113.x / 198.51.100.x sind Doku-Netze → nicht «global»; daher hier echte Beispiele simulieren
+    d = FakeDns({("beispiel.ch", "MX"): ["10 mx.beispiel.ch."], ("mx.beispiel.ch", "A"): ["8.8.4.4"],
+                 ("beispiel.ch", "TXT"): ["v=spf1 ip4:1.1.1.1 ip4:9.9.9.0/24 ip4:10.0.0.1 ip4:1.0.0.1/32 -all"]})
+    assert set(dnsbl.eigene_ips(d, "beispiel.ch")) == {"8.8.4.4", "1.1.1.1", "1.0.0.1"}
+
+
+def _bl(antworten):
+    d = {("beispiel.ch", "MX"): ["10 mx.beispiel.ch."], ("mx.beispiel.ch", "A"): ["8.8.4.4"], **antworten}
+    return ids(dnsbl.pruefe(FakeDns(d), "beispiel.ch"))
+
+
+def test_dnsbl_sauber_gelistet_verweigert():
+    assert _bl({}) == {"DNSBL-OK"}
+    assert _bl({("4.4.8.8.bl.spamcop.net", "A"): ["127.0.0.2"]}) == {"DNSBL-GELISTET"}
+    # Spamhaus verweigert (öffentlicher Resolver) → nicht «gelistet», aber Hinweis
+    assert _bl({("4.4.8.8.zen.spamhaus.org", "A"): ["127.255.255.254"]}) == {"DNSBL-OK", "DNSBL-NICHT-PRUEFBAR"}
+
+
+def test_dnsbl_alle_verweigert_ist_nicht_ok():
+    alle = {(f"4.4.8.8.{l}", "A"): ["127.255.255.254"] for l in dnsbl.LISTEN}
+    assert _bl(alle) == {"DNSBL-NICHT-PRUEFBAR"}
