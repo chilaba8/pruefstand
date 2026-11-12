@@ -796,6 +796,24 @@ def test_weiterleitung_ohne_bezug_ist_kein_signal():
     assert "MAIL-RE-OHNE-BEZUG" not in _mids(roh)[0]
 
 
+@pytest.mark.parametrize("von, erwartet", [
+    ("PostFinance <info@postfinance-sicherheit.example>", True),     # Name + Wort in Domain
+    ("Die Post <paket@zustellung-ch.example>", True),
+    ("SBB CFF FFS <noreply@tickets.example>", True),
+    ("Kundendienst <service@sbb-ticket.example>", True),               # nur Wort in Domain
+    ("PostFinance <noreply@postfinance.ch>", False),                   # echt
+    ("Die Post <news@mailing.post.ch>", False),                        # echte Subdomain
+    ("ESTV <info@estv.admin.ch>", False),
+    ("ESTV Steuern <info@estv-rueckerstattung.example>", True),
+    ("Peter Postmann <peter@muster-ag.ch>", False),                    # «Post» allein zählt nicht
+    ("Clubs Zürich <info@clubs.example>", False),                      # «ubs» nur als ganzes Wort
+    ("Swisscom <kundendienst@bluewin.ch>", True),                      # Freemail ist nie «echt»
+])
+def test_mail_marken_missbrauch(von, erwartet):
+    roh = _mail(von=von, auth="spf=pass dkim=pass dmarc=pass")
+    assert ("MAIL-MARKE-FREMDE-DOMAIN" in _mids(roh)[0]) is erwartet
+
+
 def test_mail_zu_gross():
     with pytest.raises(ValueError):
         mailpruefung.pruefe_mail(b"x" * (mailpruefung.MAX_GROESSE + 1))

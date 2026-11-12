@@ -11,6 +11,7 @@ Geprüft wird:
   - Links: Text zeigt A, Link führt zu B; IP-Adressen; Kurz-URLs; Punycode
   - Anhänge: ausführbare Dateien, Doppelendungen, Makros, HTML/SVG, Archive
   - Inhalt: IBAN + Wörter wie «neue Bankverbindung», «dringend», «vertraulich»
+  - Marken: «PostFinance», «Die Post», «SBB» … im Namen, aber nicht von deren echter Domain
   - Massen-Betrugsmuster: «Re:» ohne vorherige E-Mail, Anrede mit der eigenen Adresse,
     Anzeigename passt nicht zur Freemail-Adresse, fast leerer Text. Einzeln schwach,
     zusammen (ab 3 Signalen) ein deutliches Muster – auch wenn DMARC bestanden ist.
@@ -30,6 +31,7 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 from pruefstand.modell import Befund, Status
+from pruefstand import marken
 from pruefstand.pruefungen import aehnliche
 
 MAX_GROESSE = 25 * 1024 * 1024
@@ -225,6 +227,24 @@ def _betrugsmuster(msg: EmailMessage, betreff: str, name: str, von: str, von_dom
     return signale
 
 
+def _marken_missbrauch(name: str, von_domain: str) -> list[tuple[marken.Marke, str]]:
+    """(Marke, Grund) für jede Marke, die im Anzeigenamen oder als Wort in der Absenderdomain
+    vorkommt, obwohl die E-Mail nicht von einer echten Domain der Marke kommt."""
+    if not von_domain:
+        return []
+    anzeige = " " + re.sub(r"[^a-z0-9]+", " ", _ohne_akzente(name)) + " "
+    labels = set(re.split(r"[.-]", von_domain.lower()))
+    treffer = []
+    for marke in marken.MARKEN:
+        if marken.echt(von_domain, marke):
+            continue
+        if any(f" {m} " in anzeige for m in marke.muster):
+            treffer.append((marke, f"Anzeigename «{name}»"))
+        elif labels & set(marke.domain_woerter):
+            treffer.append((marke, f"Domain {von_domain} enthält «{', '.join(sorted(labels & set(marke.domain_woerter)))}»"))
+    return treffer
+
+
 def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = None,
                 netz=None, jetzt: datetime | None = None) -> MailErgebnis:
     if len(roh) > MAX_GROESSE:
@@ -290,6 +310,16 @@ def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = 
                  "Der Anzeigename enthält eine andere E-Mail-Adresse als der echte Absender.",
                  f"Angezeigt: «{name}» · tatsächlich: {von}",
                  "Trick, damit im Mailprogramm die vertraute Adresse erscheint."))
+
+    # 2b. Bekannte Schweizer Marken (PostFinance, Post, SBB …) von fremder Domain
+    for marke, grund in _marken_missbrauch(name, von_domain):
+        b(Befund("MAIL-MARKE-FREMDE-DOMAIN", "Absender", Status.WARNUNG,
+                 f"Gibt sich als {marke.name} aus, kommt aber nicht von deren Domain.",
+                 f"{grund} · tatsächlicher Absender: {von}\nEchte Domain(s): {', '.join(marke.domains)}",
+                 f"Nichts anklicken, keine Daten eingeben. {marke.name} nur über die bekannte Webseite "
+                 "oder App kontaktieren (selbst eintippen, nicht den Link aus der E-Mail). "
+                 "Fall dem BACS melden.",
+                 daten={"marke": marke.name, "domain": von_domain}))
 
     # 3. Ähnlichkeit mit eigenen Domains
     absender_domains = {d for d in [von_domain, rp, *[_domain(a) for a in reply]] if d}

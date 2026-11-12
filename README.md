@@ -41,7 +41,8 @@ Gedacht für KMU und für IT-Dienstleister, die KMU betreuen.
 
 ### E-Mail-Prüfung («Ist diese E-Mail echt?»)
 
-Echtheit (SPF/DKIM/DMARC), Absender (Reply-To, ähnliche Domains), Links, Anhänge, IBAN-Wechsel –
+Echtheit (SPF/DKIM/DMARC), Absender (Reply-To, ähnliche Domains, **missbrauchte Schweizer Marken** wie
+PostFinance, Post, SBB, UBS, TWINT, ESTV), Links, Anhänge, IBAN-Wechsel –
 und **Massen-Betrugsmuster**: «Re:» ohne vorherige E-Mail, Anrede mit Ihrer E-Mail-Adresse,
 Anzeigename passt nicht zur Gratis-Adresse, fast leerer Text. Wichtig, weil solche E-Mails von
 echten Gmail-/Outlook-Konten kommen und **DMARC deshalb besteht**. Erst ab mehreren starken
