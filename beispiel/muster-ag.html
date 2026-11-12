@@ -22,6 +22,11 @@ h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 10
 .zaehler span { border:1px solid; border-radius: 999px; padding: 3px 12px; font-size:13px; font-weight:600; }
 ol.todo { padding-left: 22px; } ol.todo li { margin-bottom: 10px; }
 ol.todo .was { color:var(--text); font-weight:600; }
+.aenderungen { background: var(--flaeche); border-radius: 6px; padding: 4px 18px 8px; margin: 18px 0; }
+.aenderungen h2 { margin-top: 12px; } .aenderungen li { margin-bottom: 4px; }
+table.vergleich { width:100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+table.vergleich th, table.vergleich td { text-align:left; padding: 5px 6px; border-bottom: 1px solid var(--linie); }
+table.vergleich th { font-size: 12.5px; color: var(--leise); }
 .regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
 .regel h2 { margin-top: 0; color: var(--kritisch); }
 .befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
@@ -49,7 +54,7 @@ footer { margin-top: 36px; border-top:1px solid var(--linie); padding-top: 10px;
 </style></head><body><main>
 <div class="kopfzeile"><div><div class="firma">Muster AG</div><h1><span class="domain">E-Mail-Sicherheit</span> von <span class="domain">muster-ag.example</span></h1></div>
 </div>
-<div class="meta">Geprüft am 12.11.2026 um 13:37 · E-Mail-Anbieter:
+<div class="meta">Geprüft am 12.11.2026 um 14:12 · E-Mail-Anbieter:
 Hostpoint · DNS-Anbieter:
 Cloudflare</div>
 
@@ -71,6 +76,13 @@ Cloudflare</div>
 <li class="warnung"><span class="was">Kein DKIM-Schlüssel unter gängigen Namen gefunden.</span><br><span class="meta">Bald beheben · Zuständig: Ihr Informatiker oder Ihr Anbieter</span></li>
 <li class="warnung"><span class="was">1 ähnliche Domain(s) können E-Mails senden/empfangen.</span><br><span class="meta">Bald beheben · Zuständig: Geschäftsleitung / Buchhaltung</span></li>
 </ol>
+<h2>Im Vergleich zur Schweiz</h2><table class='vergleich'><thead><tr><th>Schutz</th><th>Ihre Domain</th><th>So viele .ch-Domains haben es</th></tr></thead><tbody>
+<tr><td>DMARC vorhanden</td><td><span class="ok">✔ ja</span></td><td>45.77 % <span class='meta'>(Domains mit E-Mail)</span></td></tr>
+<tr><td>DMARC streng (p=reject)</td><td><span class="warnung">✖ nein</span></td><td>20.33 % <span class='meta'>(Domains mit E-Mail)</span></td></tr>
+<tr><td>DMARC-Berichte (rua)</td><td><span class="warnung">✖ nein</span></td><td>6.23 % <span class='meta'>(Domains mit E-Mail)</span></td></tr>
+<tr><td>SPF streng (-all)</td><td><span class="warnung">✖ nein</span></td><td>27.38 % <span class='meta'>(Domains mit E-Mail)</span></td></tr>
+<tr><td>DNSSEC</td><td><span class="warnung">✖ nein</span></td><td>48.92 % <span class='meta'>(alle .ch-Domains)</span></td></tr>
+</tbody></table><p class='meta'>Quelle: Icewolf, Swiss Domain Security Report Q3 2025 – https://blog.icewolf.ch/archive/2025/10/16/swiss-domain-security-report-q3-2025/</p>
 <div class="regel"><h2>Regel für die Buchhaltung</h2>
 <p><strong>Eine neue Bankverbindung wird nie per E-Mail akzeptiert.</strong>
 Meldet ein Lieferant oder Kunde per E-Mail ein neues Konto: zurückrufen – mit der
@@ -90,7 +102,7 @@ Fremde Server werden nur markiert, nicht abgelehnt. Mit einem strengen DMARC (qu
 <div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>Ähnliche Domains: 1 ähnliche Domain(s) registriert, derzeit ohne E-Mail.</span><span class="id">AEHNLICH-OHNE-MAIL</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>muster-ag-rechnung.example  (Zusatz)</pre><div><strong>Empfehlung:</strong> Beobachten: E-Mail kann jederzeit eingerichtet werden. Bei erneuter Prüfung zeigt pruefstand, ob sich etwas geändert hat.</div></div>
 <div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>MX: E-Mails werden angenommen von: Hostpoint</span><span class="id">MX-OK</span></div><div class="status">✔ In Ordnung</div><pre>Mailserver: mx1.mail.hostpoint.ch, mx2.mail.hostpoint.ch</pre></div>
 <div class="befund" style="--farbe:var(--info)"><div class="kopf"><span>NS: DNS wird verwaltet bei: Cloudflare – dort werden die Korrekturen gemacht.</span><span class="id">NS-ANBIETER</span></div><div class="status">ℹ Info</div><pre>Nameserver: anna.ns.cloudflare.com, bob.ns.cloudflare.com</pre></div>
-<footer>Erstellt mit pruefstand 1.0.0 – passiver Check: Es wurden nur öffentliche
-DNS-Daten abgefragt, ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
+<footer>Erstellt mit pruefstand 1.1.0 – passiver Check: Es wurden nur öffentliche
+DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 12.11.2026 und ersetzt keine vollständige Sicherheitsprüfung.</footer>
 </main></body></html>

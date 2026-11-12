@@ -23,7 +23,13 @@ Gedacht für KMU und für IT-Dienstleister, die KMU betreuen.
 | DKIM | Sind Ihre E-Mails digital unterschrieben? |
 | DNSSEC | Sind Ihre DNS-Antworten signiert? |
 | CAA | Wer darf TLS-Zertifikate für Ihre Domain ausstellen? |
-| Ähnliche Domains | Hat jemand «rnuster-ag.ch» oder «muster-ag.com» mit E-Mail registriert? |
+| MTA-STS / TLS-RPT | Wird die Verschlüsselung eingehender E-Mails erzwungen? |
+| Sperrlisten (DNSBL) | Steht Ihr Mailserver auf einer Spam-Liste? |
+| Webseite | Zertifikat (Ablauf), HTTPS, HSTS, Sicherheits-Header, security.txt |
+| Ähnliche Domains | Hat jemand «mu5ter-ag.ch», «müster-ag.ch» oder «muster-ag.com» mit E-Mail registriert? |
+
+Dazu: **Vergleich mit allen .ch-Domains** (Icewolf, Q3 2025) und **Verlauf**: Bei jeder
+weiteren Prüfung zeigt pruefstand, was seit dem letzten Mal neu kaputt oder behoben ist.
 
 ## Installation
 
@@ -55,13 +61,27 @@ pruefstand --liste kunden.txt --ordner berichte --mit-pdf \
 Ergebnis: ein Bericht pro Kunde, `uebersicht.html` (dringendste zuerst) und
 `uebersicht.csv` (öffnet direkt in Excel).
 
+Weitere Optionen:
+
+| Option | Wirkung |
+|---|---|
+| `--sprache de-DE` | Rechtschreibung für Deutschland (ß, „…“); Standard ist `de-CH` |
+| `--ohne-web` | nur DNS, Webseite und MTA-STS-Datei nicht abrufen |
+| `--ohne-aehnliche` | Suche nach ähnlichen Domains überspringen |
+| `--online-quellen` | ähnliche Domains zusätzlich bei RDAP (Registrierdatum) und crt.sh (Zertifikate) nachschlagen – langsam, sendet diese Domainnamen an externe Dienste |
+| `--ohne-verlauf` / `--verlauf ORDNER` | Vergleich mit früheren Prüfungen aus / anderer Ordner |
+| `--dkim-selektor NAME` | zusätzlichen DKIM-Selektor prüfen |
+
 Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler.
 
 ## Datenschutz
 
-Es werden nur DNS-Abfragen gestellt – wie bei jedem Besuch einer Webseite.
-Kein Server von uns, keine Anmeldung, keine Daten in der Cloud. Der Bericht ist eine
-einzige Datei ohne externe Schriften oder Skripte.
+- Abgefragt werden öffentliche DNS-Daten und – wie bei jedem Besuch – die Startseite,
+  `/.well-known/security.txt` und die MTA-STS-Datei. Kein Scan, kein Login.
+- Sperrlisten werden per DNS gefragt (Spamhaus: frei für geringe, nicht-kommerzielle Nutzung).
+- Externe Dienste (RDAP, crt.sh) nur mit `--online-quellen`.
+- Der Verlauf bleibt auf Ihrem PC (`~/.local/share/pruefstand/verlauf`, nur für Sie lesbar).
+- Der Bericht ist eine einzige Datei ohne externe Schriften oder Skripte.
 
 ## Grundsätze
 
