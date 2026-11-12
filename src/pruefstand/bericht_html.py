@@ -50,6 +50,8 @@ h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 10
 .zaehler span { border:1px solid; border-radius: 999px; padding: 3px 12px; font-size:13px; font-weight:600; }
 ol.todo { padding-left: 22px; } ol.todo li { margin-bottom: 10px; }
 ol.todo .was { color:var(--text); font-weight:600; }
+.aenderungen { background: var(--flaeche); border-radius: 6px; padding: 4px 18px 8px; margin: 18px 0; }
+.aenderungen h2 { margin-top: 12px; } .aenderungen li { margin-bottom: 4px; }
 .regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
 .regel h2 { margin-top: 0; color: var(--kritisch); }
 .befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
@@ -100,6 +102,23 @@ def _befund_html(b: Befund) -> str:
     return "".join(teile)
 
 
+def _aenderungen_html(a) -> str:
+    if a.leer:
+        return f'<p class="meta">Keine Änderungen seit der letzten Prüfung ({a.seit_datum}).</p>'
+    z = [f'<div class="aenderungen"><h2>Änderungen seit {a.seit_datum}</h2><ul>']
+    if a.urteil_vorher != a.urteil_jetzt:
+        z.append(f"<li>Fälschungsschutz: {escape(a.urteil_vorher)} → <strong>{escape(a.urteil_jetzt)}</strong></li>")
+    for b in a.neu:
+        f = FARBE[Status[b["status"]]]
+        z.append(f'<li><span class="{f}"><strong>NEU:</strong></span> {escape(b["titel"])}</li>')
+    for b in a.behoben:
+        z.append(f'<li><span class="ok"><strong>✔ Behoben:</strong></span> {escape(b["titel"])}</li>')
+    for d in a.neue_aehnliche:
+        z.append(f'<li><span class="warnung"><strong>Neu registriert:</strong></span> {escape(d)}</li>')
+    z.append("</ul></div>")
+    return "".join(z)
+
+
 def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None = None) -> str:
     absender = absender or Absender()
     status, satz = erg.faelschungsschutz
@@ -131,6 +150,9 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
         if n:
             h.append(f'<span class="{FARBE[s]}">{SYMBOL[s]} {n} × {TEXT[s]}</span>')
     h.append("</div>")
+
+    if erg.aenderungen is not None:
+        h.append(_aenderungen_html(erg.aenderungen))
 
     if zu_tun:
         h.append("<h2>Das ist zu tun</h2><ol class='todo'>")

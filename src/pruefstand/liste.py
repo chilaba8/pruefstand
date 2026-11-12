@@ -63,16 +63,36 @@ def schreibe_csv(zeilen: list[Zeile], ziel: Path) -> None:
     with ziel.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["Domain", "Firma", "Fälschungsschutz", "Kritisch", "Warnungen", "Hinweise",
-                    "E-Mail-Anbieter", "DNS-Anbieter", "Fehler"])
+                    "E-Mail-Anbieter", "DNS-Anbieter", "Neu", "Behoben", "Fehler"])
         for z in zeilen:
             if z.ergebnis is None:
-                w.writerow([z.eintrag.domain, z.eintrag.firma or "", "", "", "", "", "", "", z.fehler])
+                w.writerow([z.eintrag.domain, z.eintrag.firma or "", "", "", "", "", "", "", "", "", z.fehler])
                 continue
             e = z.ergebnis
             n = {s: sum(1 for b in e.befunde if b.status == s) for s in Status}
             w.writerow([e.domain, z.eintrag.firma or "", e.faelschungsschutz[1].split(".")[0],
                         n[Status.KRITISCH], n[Status.WARNUNG], n[Status.HINWEIS],
-                        ", ".join(e.anbieter), ", ".join(e.dns_anbieter), ""])
+                        ", ".join(e.anbieter), ", ".join(e.dns_anbieter),
+                        len(e.aenderungen.neu) if e.aenderungen else "",
+                        len(e.aenderungen.behoben) if e.aenderungen else "", ""])
+
+
+def _aend_kurz(e: Ergebnis) -> str:
+    a = e.aenderungen
+    if a is None:
+        return "<span class='meta'>erste Prüfung</span>"
+    if a.leer:
+        return "<span class='meta'>unverändert</span>"
+    teile = []
+    if a.neu:
+        teile.append(f"<span class='warnung'>+{len(a.neu)} neu</span>")
+    if a.behoben:
+        teile.append(f"<span class='ok'>{len(a.behoben)} behoben</span>")
+    if a.neue_aehnliche:
+        teile.append(f"<span class='warnung'>{len(a.neue_aehnliche)} neue ähnliche</span>")
+    if not teile:
+        teile.append("<span class='meta'>Urteil geändert</span>")
+    return " · ".join(teile)
 
 
 def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender) -> str:
@@ -83,7 +103,7 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender) -> s
     for z in sorted(zeilen, key=sortierung):
         if z.ergebnis is None:
             reihen.append(f"<tr><td>{escape(z.eintrag.domain)}</td><td>{escape(z.eintrag.firma or '')}</td>"
-                          f"<td colspan='3'><span class='kritisch'>Fehler: {escape(z.fehler or '')}</span></td></tr>")
+                          f"<td colspan='4'><span class='kritisch'>Fehler: {escape(z.fehler or '')}</span></td></tr>")
             continue
         e = z.ergebnis
         status, satz = e.faelschungsschutz
@@ -96,7 +116,7 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender) -> s
             f"<td><span class='{FARBE[status]}'>{SYMBOL[status]} {escape(satz.split('.')[0])}</span></td>"
             f"<td><span class='kritisch'>{n[Status.KRITISCH]}</span> / "
             f"<span class='warnung'>{n[Status.WARNUNG]}</span> / "
-            f"<span class='hinweis'>{n[Status.HINWEIS]}</span></td><td>{links}</td></tr>")
+            f"<span class='hinweis'>{n[Status.HINWEIS]}</span></td><td>{_aend_kurz(e)}</td><td>{links}</td></tr>")
 
     logo = (f'<img class="logo" alt="Logo" src="{escape(absender.logo_uri)}">'
             if absender.logo_uri else "")
@@ -114,7 +134,7 @@ th {{ font-size: 13px; color: var(--leise); }}
 <div class="meta">{len(zeilen)} Domains · geprüft am {datetime.now():%d.%m.%Y um %H:%M} ·
 dringendste zuerst</div>
 <table><thead><tr><th>Domain</th><th>Firma</th><th>Fälschungsschutz</th>
-<th>{TEXT[Status.KRITISCH]} / {TEXT[Status.WARNUNG]} / {TEXT[Status.HINWEIS]}</th><th>Bericht</th></tr></thead>
+<th>{TEXT[Status.KRITISCH]} / {TEXT[Status.WARNUNG]} / {TEXT[Status.HINWEIS]}</th><th>Seit letzter Prüfung</th><th>Bericht</th></tr></thead>
 <tbody>{''.join(reihen)}</tbody></table>
 <footer>{von} pruefstand {__version__} – passiver Check, nur öffentliche DNS-Daten.</footer>
 </main></body></html>"""

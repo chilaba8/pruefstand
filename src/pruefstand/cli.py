@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 from rich.console import Console
 
-from pruefstand import __version__, anleitungen, bericht, bericht_html, liste
+from pruefstand import __version__, anleitungen, bericht, bericht_html, liste, verlauf
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
@@ -54,6 +55,13 @@ def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
         raise ValueError(f"Die Domain {domain} existiert nicht.")
     erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche)
     anleitungen.ergaenze(erg)
+    if not args.ohne_verlauf:
+        v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
+        vorher = v.letzter(domain)
+        jetzt = bericht.als_json(erg)
+        if vorher:
+            erg.aenderungen = verlauf.vergleiche(vorher, json.loads(jetzt))
+        v.speichere(domain, jetzt)
     return erg
 
 
@@ -71,6 +79,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="zusätzlichen DKIM-Selektor prüfen (mehrfach möglich)")
     p.add_argument("--ohne-aehnliche", action="store_true",
                    help="Suche nach ähnlichen Domains überspringen (schneller)")
+    p.add_argument("--verlauf", metavar="ORDNER",
+                   help="Ordner für frühere Ergebnisse (Standard: ~/.local/share/pruefstand/verlauf)")
+    p.add_argument("--ohne-verlauf", action="store_true",
+                   help="Ergebnis nicht speichern und nicht mit früher vergleichen")
 
     einzel = p.add_argument_group("eine Domain")
     einzel.add_argument("--json", action="store_true", help="Ergebnis als JSON ausgeben")

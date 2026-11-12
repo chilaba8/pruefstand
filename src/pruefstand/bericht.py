@@ -35,6 +35,8 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
     kopf.append("Ist Ihre Domain gegen gefälschte E-Mails geschützt?\n", style="bold")
     kopf.append(satz, style=farbe)
     c.print(Panel(kopf, title=f"pruefstand {__version__}", border_style=farbe))
+    if erg.aenderungen is not None:
+        _aenderungen(c, erg.aenderungen)
 
     tabelle = Table(show_header=True, header_style="bold", expand=True)
     tabelle.add_column("Status", no_wrap=True)
@@ -73,6 +75,24 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
             "ausser den DNS-Abfragen.[/dim]")
 
 
+def _aenderungen(c: Console, a) -> None:
+    if a.leer:
+        c.print(f"[dim]Keine Änderungen seit der letzten Prüfung ({a.seit_datum}).[/dim]")
+        return
+    c.print(f"[bold]Änderungen seit {a.seit_datum}:[/bold]")
+    if a.urteil_vorher != a.urteil_jetzt:
+        c.print(f"  Fälschungsschutz: {a.urteil_vorher} → [bold]{a.urteil_jetzt}[/bold]")
+    for b in a.neu:
+        text, stil = AMPEL[Status[b["status"]]]
+        c.print(f"  [{stil}]+ NEU[/{stil}]      {b['titel']}  [dim]({b['id']})[/dim]")
+    for b in a.behoben:
+        c.print(f"  [green]✔ BEHOBEN[/green]  {b['titel']}  [dim]({b['id']})[/dim]")
+    for d in a.neue_aehnliche:
+        c.print(f"  [yellow]+ NEU registriert:[/yellow] {d}")
+    if a.nicht_verglichen:
+        c.print(f"  [dim]Nicht verglichen (nur einmal geprüft): {', '.join(a.nicht_verglichen)}[/dim]")
+
+
 def als_json(erg: Ergebnis) -> str:
     status, satz = erg.faelschungsschutz
     return json.dumps({
@@ -81,6 +101,7 @@ def als_json(erg: Ergebnis) -> str:
         "domain": erg.domain,
         "anbieter": erg.anbieter,
         "dns_anbieter": erg.dns_anbieter,
+        "ausgefuehrt": erg.ausgefuehrt,
         "faelschungsschutz": {"status": status.name, "text": satz},
         "befunde": [b.als_dict() for b in erg.befunde],
     }, ensure_ascii=False, indent=2)

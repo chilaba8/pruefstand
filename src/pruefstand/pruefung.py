@@ -13,6 +13,8 @@ from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnssec, mx, ns, s
 class Ergebnis:
     domain: str
     befunde: list[Befund] = field(default_factory=list)
+    ausgefuehrt: list[str] = field(default_factory=list)   # welche Prüfungen liefen (für Vergleich)
+    aenderungen: object | None = None                      # verlauf.Aenderungen, falls Vorbericht da
 
     @property
     def schlimmster(self) -> Status:
@@ -75,6 +77,7 @@ def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = Non
     for name, funktion in PRUEFUNGEN:
         if name == "AEHNLICH" and not aehnliche_suchen:
             continue
+        erg.ausgefuehrt.append(name)
         try:
             if name == "DKIM":
                 erg.befunde += dkim.pruefe(dns, domain, dkim_selektoren)

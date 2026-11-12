@@ -346,3 +346,65 @@ def test_logo_falsches_format_und_zu_gross(tmp_path):
     (tmp_path / "riesig.png").write_bytes(b"0" * (absender.MAX_GROESSE + 1))
     with pytest.raises(ValueError):
         absender.lade_logo(tmp_path / "riesig.png")
+
+
+# --- Verlauf (vorher/nachher) ------------------------------------------------
+
+import json  # noqa: E402
+
+from pruefstand import bericht, verlauf  # noqa: E402
+
+UNGESCHUETZT = {("beispiel.ch", "MX"): ["10 mx.hostpoint.ch."], ("mx.hostpoint.ch", "A"): ["1.2.3.4"],
+                ("beispiel.ch", "TXT"): ["v=spf1 mx -all"]}
+GESCHUETZT = {**UNGESCHUETZT, ("_dmarc.beispiel.ch", "TXT"): ["v=DMARC1; p=reject; rua=mailto:d@beispiel.ch"]}
+
+
+def _json(daten, **kw):
+    erg = pruefe_domain(FakeDns(daten, **kw), "beispiel.ch", aehnliche_suchen=False)
+    return json.loads(bericht.als_json(erg))
+
+
+def test_verlauf_behoben_und_urteil():
+    a = verlauf.vergleiche(_json(UNGESCHUETZT), _json(GESCHUETZT))
+    assert [b["id"] for b in a.behoben] == ["DMARC-FEHLT"]
+    assert a.neu == []
+    assert a.urteil_vorher.startswith("NEIN") and a.urteil_jetzt.startswith("JA")
+
+
+def test_verlauf_neu_kaputt():
+    a = verlauf.vergleiche(_json(GESCHUETZT), _json(UNGESCHUETZT))
+    assert [b["id"] for b in a.neu] == ["DMARC-FEHLT"]
+
+
+def test_verlauf_unveraendert_ist_leer():
+    assert verlauf.vergleiche(_json(GESCHUETZT), _json(GESCHUETZT)).leer
+
+
+def test_verlauf_dns_fehler_ist_nicht_behoben():
+    """DMARC heute nicht abfragbar → darf NICHT als «behoben» erscheinen."""
+    a = verlauf.vergleiche(_json(UNGESCHUETZT), _json(UNGESCHUETZT, kaputt={"_dmarc.beispiel.ch"}))
+    assert a.behoben == [] and "DMARC" in a.nicht_verglichen
+
+
+def test_verlauf_ohne_aehnliche_ist_nicht_behoben():
+    vorher = {"ausgefuehrt": ["AEHNLICH"], "befunde": [
+        {"id": "AEHNLICH-MIT-MAIL", "titel": "t", "status": "WARNUNG", "daten": {"treffer": []}}]}
+    jetzt = {"ausgefuehrt": [], "befunde": []}
+    a = verlauf.vergleiche(vorher, jetzt)
+    assert a.behoben == [] and a.nicht_verglichen == ["AEHNLICH"]
+
+
+def test_verlauf_neue_aehnliche_domain():
+    def mit(domains):
+        return {"ausgefuehrt": ["AEHNLICH"], "befunde": [{"id": "AEHNLICH-MIT-MAIL", "titel": "t",
+                "status": "WARNUNG", "daten": {"treffer": [{"domain": d} for d in domains]}}]}
+    a = verlauf.vergleiche(mit(["a.ch"]), mit(["a.ch", "b.ch"]))
+    assert a.neue_aehnliche == ["b.ch"]
+
+
+def test_verlauf_speichern_und_lesen(tmp_path):
+    v = verlauf.Verlauf(tmp_path)
+    assert v.letzter("beispiel.ch") is None
+    v.speichere("beispiel.ch", '{"zeitpunkt": "x"}')
+    (tmp_path / "beispiel.ch" / "9999-kaputt.json").write_text("{kaputt", encoding="utf-8")
+    assert v.letzter("beispiel.ch") == {"zeitpunkt": "x"}       # kaputte Datei übersprungen
