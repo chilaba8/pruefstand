@@ -13,23 +13,36 @@ Gedacht für KMU und für IT-Dienstleister, die KMU betreuen.
 
 *Beispielbericht mit erfundenen Daten – [ganzer Bericht](beispiel/muster-ag.html).*
 
-## Was wird geprüft?
+## Was kann pruefstand?
+
+| Modus | Befehl | Für wen |
+|---|---|---|
+| **Domain prüfen** | `pruefstand beispiel.ch` | Informatiker, KMU |
+| **«Ist diese E-Mail echt?»** | `pruefstand --mail verdaechtig.eml --eigene-domain beispiel.ch` | alle Mitarbeitenden |
+| **DMARC-Berichte lesen** | `pruefstand --dmarc-berichte ordner/` | wer DMARC auf p=reject bringen will |
+| **Viele Kunden + eigenes Logo** | `pruefstand --liste kunden.txt --ordner berichte` | IT-Dienstleister |
+| **Überwachung mit Benachrichtigung** | `… --benachrichtigen telegram` (monatlich per Timer) | IT-Dienstleister |
+| **Im Browser** | `pruefstand --oberflaeche` → http://127.0.0.1:8765 | wer keine Kommandozeile mag |
+
+### Domain-Prüfung
 
 | Prüfung | Frage |
 |---|---|
-| NS / MX | Wo liegt Ihr DNS, wer nimmt Ihre E-Mails an? |
+| NS / MX / Cloud | Wo liegt Ihr DNS, wer nimmt E-Mails an, ist Microsoft 365 / Google im Einsatz? |
 | SPF | Welche Server dürfen in Ihrem Namen senden? (inkl. 10-Lookup-Grenze) |
 | DMARC | Werden gefälschte E-Mails blockiert? Bekommen Sie Berichte? |
 | DKIM | Sind Ihre E-Mails digital unterschrieben? |
-| DNSSEC | Sind Ihre DNS-Antworten signiert? |
-| CAA | Wer darf TLS-Zertifikate für Ihre Domain ausstellen? |
+| DNSSEC / CAA | Sind DNS-Antworten signiert? Wer darf Zertifikate ausstellen? |
 | MTA-STS / TLS-RPT | Wird die Verschlüsselung eingehender E-Mails erzwungen? |
 | Sperrlisten (DNSBL) | Steht Ihr Mailserver auf einer Spam-Liste? |
-| Webseite | Zertifikat (Ablauf), HTTPS, HSTS, Sicherheits-Header, security.txt |
+| Webseite | Zertifikat, HTTPS, HSTS, Header, Cookies, TLS 1.0/1.1, CMS-Version, security.txt |
+| Subdomains | Zeigt eine Subdomain auf einen gekündigten Dienst (Subdomain-Takeover)? |
 | Ähnliche Domains | Hat jemand «mu5ter-ag.ch», «müster-ag.ch» oder «muster-ag.com» mit E-Mail registriert? |
 
-Dazu: **Vergleich mit allen .ch-Domains** (Icewolf, Q3 2025) und **Verlauf**: Bei jeder
-weiteren Prüfung zeigt pruefstand, was seit dem letzten Mal neu kaputt oder behoben ist.
+Dazu: **Gesamtnote A–F**, **Vergleich mit allen .ch-Domains** (Icewolf Q3 2025), **Verlauf**
+(was ist seit der letzten Prüfung neu kaputt oder behoben?) und **Normbezug** je Befund
+(nDSG Art. 8, IKT-Minimalstandard, ISO/IEC 27001:2022 – zur Orientierung, keine Rechtsberatung).
+Die Befund-IDs sind identisch mit [befundkatalog](https://github.com/chilaba8/befundkatalog).
 
 ## Installation
 
@@ -67,21 +80,45 @@ Weitere Optionen:
 |---|---|
 | `--sprache de-DE` | Rechtschreibung für Deutschland (ß, „…“); Standard ist `de-CH` |
 | `--ohne-web` | nur DNS, Webseite und MTA-STS-Datei nicht abrufen |
-| `--ohne-aehnliche` | Suche nach ähnlichen Domains überspringen |
-| `--online-quellen` | ähnliche Domains zusätzlich bei RDAP (Registrierdatum) und crt.sh (Zertifikate) nachschlagen – langsam, sendet diese Domainnamen an externe Dienste |
+| `--ohne-aehnliche` / `--ohne-subdomains` | diese Suchen überspringen |
+| `--online-quellen` | zusätzlich RDAP (Registrierdatum) und crt.sh (Zertifikate, Subdomains) – langsam, sendet Domainnamen an externe Dienste |
 | `--ohne-verlauf` / `--verlauf ORDNER` | Vergleich mit früheren Prüfungen aus / anderer Ordner |
 | `--dkim-selektor NAME` | zusätzlichen DKIM-Selektor prüfen |
 
+### Überwachung (monatlich, mit Benachrichtigung)
+
+```bash
+export PRUEFSTAND_TELEGRAM_TOKEN=…  PRUEFSTAND_TELEGRAM_CHAT=…     # oder PRUEFSTAND_SMTP_*
+pruefstand --liste kunden.txt --ordner berichte --benachrichtigen telegram
+```
+
+Gemeldet wird nur, was sich geändert hat (neu kaputt, behoben, neue ähnliche Domain).
+Zugangsdaten nur über Umgebungsvariablen. Beispiel für einen systemd-Timer:
+[`beispiel/systemd/`](beispiel/systemd/). Statt Telegram/E-Mail geht auch ein eigener Befehl:
+`--bei-aenderung "befehl"` (Nachricht auf stdin).
+
+### Docker
+
+```bash
+docker build -t pruefstand .
+docker run --rm pruefstand beispiel.ch
+```
+
 Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler.
 
-## Datenschutz
+## Datenschutz und Sicherheit
 
-- Abgefragt werden öffentliche DNS-Daten und – wie bei jedem Besuch – die Startseite,
-  `/.well-known/security.txt` und die MTA-STS-Datei. Kein Scan, kein Login.
-- Sperrlisten werden per DNS gefragt (Spamhaus: frei für geringe, nicht-kommerzielle Nutzung).
-- Externe Dienste (RDAP, crt.sh) nur mit `--online-quellen`.
-- Der Verlauf bleibt auf Ihrem PC (`~/.local/share/pruefstand/verlauf`, nur für Sie lesbar).
-- Der Bericht ist eine einzige Datei ohne externe Schriften oder Skripte.
+- Domain-Prüfung: öffentliche DNS-Daten und – wie bei jedem Besuch – Startseite,
+  `/.well-known/security.txt`, MTA-STS-Datei und ggf. Startseiten verdächtiger Subdomains.
+  Kein Port-Scan, kein Login, keine Angriffe.
+- E-Mail-Prüfung: komplett lokal; kein Link wird geöffnet, kein Anhang ausgeführt.
+- DMARC-Berichte: lokal; nur die Namen der Server-IPs werden per DNS nachgeschlagen.
+  Berichte sind fremde Daten: XML wird mit defusedxml gelesen, Archive mit Grössenlimit.
+- Externe Dienste (RDAP, crt.sh) nur mit `--online-quellen`. Sperrlisten per DNS
+  (Spamhaus: frei für geringe, nicht-kommerzielle Nutzung).
+- Verlauf nur auf Ihrem PC (`~/.local/share/pruefstand/verlauf`, nur für Sie lesbar).
+- Oberfläche nur auf 127.0.0.1, mit Schutz gegen fremde Webseiten (Host-Prüfung, Token, CSP).
+- Prüfen Sie fremde Domains nur mit Einverständnis des Inhabers.
 
 ## Grundsätze
 

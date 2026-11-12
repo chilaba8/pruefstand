@@ -27,6 +27,10 @@ ol.todo .was { color:var(--text); font-weight:600; }
 table.vergleich { width:100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
 table.vergleich th, table.vergleich td { text-align:left; padding: 5px 6px; border-bottom: 1px solid var(--linie); }
 table.vergleich th { font-size: 12.5px; color: var(--leise); }
+.note { display:inline-block; margin-left: 10px; padding: 2px 12px; border-radius: 6px; color:#fff;
+        font-size: 16px; vertical-align: middle; }
+.note-A{background:var(--ok)} .note-B{background:#4a8f2b} .note-C{background:#8a7a00}
+.note-D{background:var(--warnung)} .note-E{background:#c2410c} .note-F{background:var(--kritisch)}
 .regel { border: 2px dashed var(--kritisch); border-radius: 8px; padding: 14px 18px; margin-top: 22px; }
 .regel h2 { margin-top: 0; color: var(--kritisch); }
 .befund { border:1px solid var(--linie); border-left: 6px solid var(--farbe); border-radius: 6px;
@@ -54,11 +58,11 @@ footer { margin-top: 36px; border-top:1px solid var(--linie); padding-top: 10px;
 </style></head><body><main>
 <div class="kopfzeile"><div><div class="firma">Muster AG</div><h1><span class="domain">E-Mail-Sicherheit</span> von <span class="domain">muster-ag.example</span></h1></div>
 </div>
-<div class="meta">Geprüft am 12.11.2026 um 14:12 · E-Mail-Anbieter:
+<div class="meta">Geprüft am 12.11.2026 um 14:59 · E-Mail-Anbieter:
 Hostpoint · DNS-Anbieter:
 Cloudflare</div>
 
-<h2>Für die Geschäftsleitung</h2>
+<h2>Für die Geschäftsleitung <span class="note note-F" title="33/100 Punkte">Note F</span></h2>
 <div class="urteil kritisch">
   <div class="frage">Kann jemand in Ihrem Namen gefälschte E-Mails verschicken – z. B. Rechnungen
   mit einer falschen Bankverbindung?</div>
@@ -68,7 +72,7 @@ Cloudflare</div>
 <span class="kritisch">✖ 1 × Sofort handeln</span>
 <span class="warnung">▲ 3 × Bald beheben</span>
 <span class="hinweis">● 4 × Bei Gelegenheit verbessern</span>
-<span class="ok">✔ 1 × In Ordnung</span>
+<span class="ok">✔ 2 × In Ordnung</span>
 </div>
 <h2>Das ist zu tun</h2><ol class='todo'>
 <li class="kritisch"><span class="was">DMARC nur im Beobachtungsmodus (p=none): Fälschungen werden NICHT blockiert.</span><br><span class="meta">Sofort handeln · Zuständig: Ihr Informatiker oder Ihr Anbieter</span></li>
@@ -101,8 +105,9 @@ Fremde Server werden nur markiert, nicht abgelehnt. Mit einem strengen DMARC (qu
 <div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>CAA: Kein CAA-Eintrag: Jede Zertifizierungsstelle darf Zertifikate für Sie ausstellen.</span><span class="id">CAA-FEHLT</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>Geringes Risiko, aber einfach zu verbessern.</pre><div><strong>Empfehlung:</strong> CAA-Eintrag mit Ihrer Zertifizierungsstelle anlegen, z. B. «muster-ag.example. CAA 0 issue &quot;letsencrypt.org&quot;».</div></div>
 <div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>Ähnliche Domains: 1 ähnliche Domain(s) registriert, derzeit ohne E-Mail.</span><span class="id">AEHNLICH-OHNE-MAIL</span></div><div class="status">● Bei Gelegenheit verbessern</div><pre>muster-ag-rechnung.example  (Zusatz)</pre><div><strong>Empfehlung:</strong> Beobachten: E-Mail kann jederzeit eingerichtet werden. Bei erneuter Prüfung zeigt pruefstand, ob sich etwas geändert hat.</div></div>
 <div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>MX: E-Mails werden angenommen von: Hostpoint</span><span class="id">MX-OK</span></div><div class="status">✔ In Ordnung</div><pre>Mailserver: mx1.mail.hostpoint.ch, mx2.mail.hostpoint.ch</pre></div>
+<div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>Subdomains: Keine verwaisten Subdomains gefunden (47 Namen geprüft).</span><span class="id">SUB-OK</span></div><div class="status">✔ In Ordnung</div></div>
 <div class="befund" style="--farbe:var(--info)"><div class="kopf"><span>NS: DNS wird verwaltet bei: Cloudflare – dort werden die Korrekturen gemacht.</span><span class="id">NS-ANBIETER</span></div><div class="status">ℹ Info</div><pre>Nameserver: anna.ns.cloudflare.com, bob.ns.cloudflare.com</pre></div>
-<footer>Erstellt mit pruefstand 1.1.0 – passiver Check: Es wurden nur öffentliche
+<footer>Erstellt mit pruefstand 1.2.0 – passiver Check: Es wurden nur öffentliche
 DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 12.11.2026 und ersetzt keine vollständige Sicherheitsprüfung.</footer>
 </main></body></html>
