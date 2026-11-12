@@ -39,6 +39,18 @@ Gedacht für KMU und für IT-Dienstleister, die KMU betreuen.
 | Subdomains | Zeigt eine Subdomain auf einen gekündigten Dienst (Subdomain-Takeover)? |
 | Ähnliche Domains | Hat jemand «mu5ter-ag.ch», «müster-ag.ch» oder «muster-ag.com» mit E-Mail registriert? |
 
+**Korrekturen zum Kopieren:** pruefstand sagt nicht nur «DMARC fehlt», sondern liefert den
+fertigen Eintrag – passend zum erkannten Anbieter, bei riskanten Änderungen in Phasen
+(DMARC none → quarantine → reject, MTA-STS testing → enforce), mit Platzhaltern `<…>` nur
+dort, wo Angaben vom Kunden nötig sind:
+
+```bash
+pruefstand beispiel.ch --korrekturen                      # im Terminal
+pruefstand beispiel.ch --korrekturen-datei fix.md          # als Datei für den Informatiker
+```
+
+Der HTML/PDF-Bericht enthält die Korrekturen automatisch.
+
 Dazu: **Gesamtnote A–F**, **Vergleich mit allen .ch-Domains** (Icewolf Q3 2025), **Verlauf**
 (was ist seit der letzten Prüfung neu kaputt oder behoben?) und **Normbezug** je Befund
 (nDSG Art. 8, IKT-Minimalstandard, ISO/IEC 27001:2022 – zur Orientierung, keine Rechtsberatung).

@@ -1082,3 +1082,106 @@ def test_ui_mail_upload(ui):
              f"--{grenze}--\r\n".encode()]
     status, html = _post(ui, "/mail", b"".join(teile), {"Content-Type": f"multipart/form-data; boundary={grenze}"})
     assert status == 200 and "GEFÄHRLICH" in html
+
+
+# --- Korrektur-Generator: Korrekturen anwenden → Befund muss verschwinden ----------------------
+
+from pruefstand import korrektur  # noqa: E402
+
+KAPUTT = {
+    ("muster-ag.ch", "MX"): ["10 mx1.mail.hostpoint.ch.", "20 mx2.mail.hostpoint.ch."],
+    ("mx1.mail.hostpoint.ch", "A"): ["192.0.2.10"], ("mx2.mail.hostpoint.ch", "A"): ["192.0.2.11"],
+    ("muster-ag.ch", "NS"): ["anna.ns.cloudflare.com.", "bob.ns.cloudflare.com."],
+    ("spf.mail.hostpoint.ch", "TXT"): ["v=spf1 ip4:192.0.2.0/24 -all"],
+    ("spf.protection.outlook.com", "TXT"): ["v=spf1 ip4:198.51.100.0/24 -all"],
+}
+
+
+def _wende_an(daten, korrekturen, letzte_phase=True):
+    """Simuliert den Informatiker: DNS-Einträge eintragen (bei Phasen nur die letzte)."""
+    neu = dict(daten)
+    for k in korrekturen:
+        dns_schritte = [s for s in k.schritte if s.art == "dns"]
+        gesehen = set()
+        for s in (reversed(dns_schritte) if letzte_phase else dns_schritte):
+            if (s.name, s.typ) in gesehen:
+                continue
+            gesehen.add((s.name, s.typ))
+            if s.typ == "TXT":
+                bisher = [t for t in neu.get((s.name, "TXT"), [])
+                          if t.split(" ", 1)[0].split(";")[0].lower() != s.wert.split(" ", 1)[0].split(";")[0].lower()]
+                neu[(s.name, "TXT")] = bisher + [s.wert]
+            else:
+                neu[(s.name, s.typ)] = [s.wert]
+    return neu
+
+
+def test_korrektur_spf_und_dmarc_beheben_den_befund():
+    vorher = pruefe_domain(FakeDns(KAPUTT, zone="muster-ag.ch"), "muster-ag.ch", aehnliche_suchen=False)
+    assert vorher.hat("SPF-FEHLT") and vorher.hat("DMARC-FEHLT")
+    korr = korrektur.erzeuge(vorher)
+    spf_wert = next(s.wert for k in korr if k.befund_id == "SPF-FEHLT" for s in k.schritte if "Phase 2" in s.titel)
+    assert spf_wert == "v=spf1 include:spf.mail.hostpoint.ch -all"
+    nachher = pruefe_domain(FakeDns(_wende_an(KAPUTT, korr), zone="muster-ag.ch"), "muster-ag.ch",
+                            aehnliche_suchen=False)
+    assert nachher.hat("SPF-OK") and nachher.hat("DMARC-REJECT")
+    assert not nachher.hat("DMARC-KEIN-RUA") and nachher.faelschungsschutz[0] == Status.OK
+
+
+def test_korrektur_spf_umbau():
+    assert korrektur._spf_mit("v=spf1 mx +all", "~all") == "v=spf1 mx ~all"
+    assert korrektur._spf_mit("v=spf1 mx", "~all") == "v=spf1 mx ~all"
+    assert korrektur._spf_mit("v=spf1 mx ptr:x.ch -all", ohne=("ptr",)) == "v=spf1 mx -all"
+    assert korrektur._spf_mit("v=spf1 mx -all", zusatz="include:spf.protection.outlook.com") == \
+        "v=spf1 mx include:spf.protection.outlook.com -all"
+    assert korrektur._spf_mit("v=spf1 redirect=spf.x.ch", "-all") == "v=spf1 redirect=spf.x.ch"   # nie all + redirect
+
+
+def test_korrektur_dmarc_erhaelt_bestehende_tags():
+    d = {**KAPUTT, ("_dmarc.muster-ag.ch", "TXT"): ["v=DMARC1; p=none; adkim=s; fo=1"]}
+    erg = pruefe_domain(FakeDns(d, zone="muster-ag.ch"), "muster-ag.ch", aehnliche_suchen=False)
+    werte = [s.wert for k in korrektur.erzeuge(erg) for s in k.schritte if s.name == "_dmarc.muster-ag.ch"]
+    assert "v=DMARC1; p=none; rua=mailto:dmarc@muster-ag.ch; adkim=s; fo=1" in werte
+    assert any("p=reject" in w and "adkim=s" in w and "fo=1" in w and "rua=" in w for w in werte)
+
+
+def test_korrektur_hostpoint_dns_kein_dmarc_eintrag():
+    d = {**KAPUTT, ("muster-ag.ch", "NS"): ["ns.hostpoint.ch.", "ns2.hostpoint.ch."],
+         ("_dmarc.muster-ag.ch", "TXT"): ["v=DMARC1;p=quarantine;"]}
+    erg = pruefe_domain(FakeDns(d, zone="muster-ag.ch"), "muster-ag.ch", aehnliche_suchen=False)
+    k = {x.befund_id: x for x in korrektur.erzeuge(erg)}
+    assert "DMARC-HOSTPOINT" in k and "DMARC-KEIN-RUA" not in k
+
+
+def test_korrektur_mta_sts_richtlinie_besteht_eigene_pruefung():
+    erg = pruefe_domain(FakeDns(KAPUTT, zone="muster-ag.ch"), "muster-ag.ch", aehnliche_suchen=False)
+    erg.befunde.append(Befund("MTASTS-FEHLT", "MTA-STS", Status.HINWEIS, "t"))
+    k = next(x for x in korrektur.erzeuge(erg) if x.befund_id == "MTASTS-FEHLT")
+    enforce = next(s for s in k.schritte if s.art == "datei" and "enforce" in s.wert)
+    txt = next(s.wert for s in k.schritte if s.name == "_mta-sts.muster-ag.ch")
+    url = "https://mta-sts.muster-ag.ch/.well-known/mta-sts.txt"
+    d = {**KAPUTT, ("_mta-sts.muster-ag.ch", "TXT"): [txt],
+         ("_smtp._tls.muster-ag.ch", "TXT"): ["v=TLSRPTv1; rua=mailto:tlsrpt@muster-ag.ch"]}
+    netz = FakeNetz({url: Antwort(200, url, {}, enforce.wert)})
+    assert ids(mta_sts.pruefe(FakeDns(d), "muster-ag.ch", netz)) == {"MTASTS-OK", "TLSRPT-OK"}
+
+
+def test_korrektur_security_txt_und_markdown():
+    erg = Ergebnis("muster-ag.ch", [Befund("WEB-SECURITYTXT-FEHLT", "Web", Status.HINWEIS, "t"),
+                                    Befund("SUB-UEBERNEHMBAR", "Subdomains", Status.KRITISCH, "t",
+                                           daten={"eintraege": [{"name": "shop.muster-ag.ch",
+                                                                 "ziel": "x.azurewebsites.net"}]})])
+    korr = korrektur.erzeuge(erg, datetime(2026, 11, 12, tzinfo=timezone.utc))
+    md = korrektur.als_markdown(erg, korr)
+    assert "Expires: 2027-11-12T00:00:00Z" in md and "LÖSCHEN" in md and "shop.muster-ag.ch" in md
+    st = next(s for k in korr for s in k.schritte if s.art == "datei")
+    seite = Antwort(200, "", {}, st.wert)
+    assert "contact:" in seite.text.lower()     # erfüllt die eigene security.txt-Prüfung
+
+
+def test_korrektur_null_mx_fuer_domain_ohne_mail():
+    erg = pruefe_domain(FakeDns({("muster-ag.ch", "NS"): ["ns.hostpoint.ch."]}, zone="muster-ag.ch"),
+                        "muster-ag.ch", aehnliche_suchen=False)
+    werte = {(s.typ, s.wert) for k in korrektur.erzeuge(erg) for s in k.schritte}
+    assert ("MX", "0 .") in werte and ("TXT", "v=spf1 -all") in werte and ("TXT", "v=DMARC1; p=reject") in werte
+    assert not any("p=none" in w or "~all" in w for _, w in werte)      # keine Phasen-Einführung

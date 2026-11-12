@@ -11,7 +11,7 @@ from pathlib import Path
 from rich.console import Console
 
 from pruefstand import (__version__, anleitungen, bericht, bericht_html, benachrichtigung,
-                        dmarc_berichte, liste, mailpruefung, normen, verlauf)
+                        dmarc_berichte, korrektur, liste, mailpruefung, normen, verlauf)
 from pruefstand.absender import Absender, lade_logo
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Status
@@ -104,6 +104,10 @@ def _parser() -> argparse.ArgumentParser:
     einzel.add_argument("--html", metavar="DATEI", help="Bericht als HTML-Datei speichern")
     einzel.add_argument("--pdf", metavar="DATEI", help="Bericht als PDF speichern (braucht Chromium)")
     einzel.add_argument("--firma", metavar="NAME", help="Firmenname für den Berichtskopf")
+    einzel.add_argument("--korrekturen", action="store_true",
+                        help="fertige Einträge/Konfiguration zum Kopieren anzeigen")
+    einzel.add_argument("--korrekturen-datei", metavar="DATEI",
+                        help="Korrekturen als Markdown-Datei speichern (z. B. für den Informatiker)")
 
     liste_ = p.add_argument_group("viele Domains")
     liste_.add_argument("--liste", metavar="DATEI",
@@ -236,10 +240,18 @@ def _einzeln(dns: Dns, args, absender: Absender) -> int:
         print(f"Fehler: DNS-Server antwortet nicht ({e}).", file=sys.stderr)
         return EXIT_FEHLER
 
+    korr = korrektur.erzeuge(erg)
     if args.json:
-        print(bericht.als_json(erg))
+        daten = json.loads(bericht.als_json(erg))
+        daten["korrekturen"] = korrektur.als_dicts(korr)
+        print(json.dumps(daten, ensure_ascii=False, indent=2))
     else:
         bericht.terminal(erg)
+        if args.korrekturen:
+            bericht.korrektur_terminal(korr)
+    if args.korrekturen_datei:
+        Path(args.korrekturen_datei).write_text(korrektur.als_markdown(erg, korr), encoding="utf-8")
+        print(f"Korrekturen gespeichert: {args.korrekturen_datei}", file=sys.stderr)
 
     if args.html or args.pdf:
         html = bericht_html.erzeuge(erg, args.firma, absender)

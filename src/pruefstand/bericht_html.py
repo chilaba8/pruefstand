@@ -18,7 +18,7 @@ from pruefstand import __version__
 from pruefstand.absender import Absender
 from pruefstand.modell import Befund, Status
 from pruefstand.pruefung import Ergebnis
-from pruefstand import vergleich_ch
+from pruefstand import korrektur, vergleich_ch
 from pruefstand.sprache import fuer
 
 FARBE = {Status.OK: "ok", Status.HINWEIS: "hinweis", Status.WARNUNG: "warnung",
@@ -197,6 +197,27 @@ Betrugsfälle können Sie dem Bundesamt für Cybersicherheit (BACS) melden.</p><
              '<p class="meta">Für Ihren Informatiker. Jeder Befund hat eine feste ID.</p>')
     h += [_befund_html(b) for b in sorted(erg.befunde, key=lambda b: -b.status)]
     von = f"Erstellt von {escape(absender.name)} mit" if absender.name else "Erstellt mit"
+    korrekturen = korrektur.erzeuge(erg)
+    if korrekturen:
+        h.append('<h2 class="seitenumbruch">Korrekturen zum Kopieren</h2><p class="meta">Für Ihren '
+                 'Informatiker. Werte in &lt;…&gt; selbst ausfüllen; bei Phasen erst weiter, wenn die '
+                 'Bedingung erfüllt ist.</p>')
+        for k in korrekturen:
+            h.append(f'<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>'
+                     f'{escape(k.titel)}</span><span class="id">{escape(k.befund_id)}</span></div>')
+            for s_ in k.schritte:
+                h.append(f"<div><strong>{escape(s_.titel)}</strong></div>")
+                if s_.art in ("dns", "dns-loeschen"):
+                    aktion = "LÖSCHEN: " if s_.art == "dns-loeschen" else ""
+                    h.append(f"<pre>{aktion}{escape(s_.name)}  {escape(s_.typ)}  {escape(s_.wert)}</pre>")
+                elif s_.art in ("datei", "header"):
+                    if s_.name:
+                        h.append(f'<div class="quelle">{escape(s_.name)}</div>')
+                    h.append(f"<pre>{escape(s_.wert.rstrip())}</pre>")
+                if s_.hinweis:
+                    h.append(f'<div class="meta">→ {escape(s_.hinweis)}</div>')
+            h.append("</div>")
+
     if any(b.normen for b in erg.befunde):
         from pruefstand.normen import HINWEIS as NORM_HINWEIS
         h.append(f'<p class="meta">{escape(NORM_HINWEIS)} Note: 100 Punkte minus 25 je kritischem '

@@ -170,3 +170,25 @@ def rua_json(aus, befunde) -> str:
                      "dkim_selektoren": sorted(q.dkim_selektoren)} for q in aus.quellen.values()],
         "befunde": [b.als_dict() for b in befunde],
     }, ensure_ascii=False, indent=2)
+
+
+def korrektur_terminal(korrekturen, console: Console | None = None) -> None:
+    c = console or Console()
+    if not korrekturen:
+        c.print("\n[green]Keine Korrekturen nötig.[/green]")
+        return
+    c.print("\n[bold]Korrekturen zum Kopieren[/bold] [dim](Werte in <…> selbst ausfüllen)[/dim]")
+    for k in korrekturen:
+        c.print(f"\n[bold cyan]■ {k.titel}[/bold cyan]  [dim]({k.befund_id})[/dim]")
+        for s in k.schritte:
+            c.print(f"  [bold]{s.titel}[/bold]")
+            if s.art in ("dns", "dns-loeschen"):
+                aktion = "[red]LÖSCHEN[/red] " if s.art == "dns-loeschen" else ""
+                c.print(f"    {aktion}{s.name}  [yellow]{s.typ}[/yellow]  ", end="")
+                c.print(Text(s.wert, style="green"))
+            elif s.art in ("datei", "header"):
+                if s.name:
+                    c.print(f"    [dim]{s.name}[/dim]")
+                c.print(Text("    " + s.wert.rstrip().replace("\n", "\n    "), style="green"))
+            if s.hinweis:
+                c.print(f"    [dim]→ {s.hinweis}[/dim]")

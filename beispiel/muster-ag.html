@@ -58,7 +58,7 @@ footer { margin-top: 36px; border-top:1px solid var(--linie); padding-top: 10px;
 </style></head><body><main>
 <div class="kopfzeile"><div><div class="firma">Muster AG</div><h1><span class="domain">E-Mail-Sicherheit</span> von <span class="domain">muster-ag.example</span></h1></div>
 </div>
-<div class="meta">Geprüft am 12.11.2026 um 14:59 · E-Mail-Anbieter:
+<div class="meta">Geprüft am 12.11.2026 um 15:08 · E-Mail-Anbieter:
 Hostpoint · DNS-Anbieter:
 Cloudflare</div>
 
@@ -107,7 +107,34 @@ Fremde Server werden nur markiert, nicht abgelehnt. Mit einem strengen DMARC (qu
 <div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>MX: E-Mails werden angenommen von: Hostpoint</span><span class="id">MX-OK</span></div><div class="status">✔ In Ordnung</div><pre>Mailserver: mx1.mail.hostpoint.ch, mx2.mail.hostpoint.ch</pre></div>
 <div class="befund" style="--farbe:var(--ok)"><div class="kopf"><span>Subdomains: Keine verwaisten Subdomains gefunden (47 Namen geprüft).</span><span class="id">SUB-OK</span></div><div class="status">✔ In Ordnung</div></div>
 <div class="befund" style="--farbe:var(--info)"><div class="kopf"><span>NS: DNS wird verwaltet bei: Cloudflare – dort werden die Korrekturen gemacht.</span><span class="id">NS-ANBIETER</span></div><div class="status">ℹ Info</div><pre>Nameserver: anna.ns.cloudflare.com, bob.ns.cloudflare.com</pre></div>
-<footer>Erstellt mit pruefstand 1.2.0 – passiver Check: Es wurden nur öffentliche
+<h2 class="seitenumbruch">Korrekturen zum Kopieren</h2><p class="meta">Für Ihren Informatiker. Werte in &lt;…&gt; selbst ausfüllen; bei Phasen erst weiter, wenn die Bedingung erfüllt ist.</p>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>DMARC-Berichte aktivieren</span><span class="id">DMARC-KEIN-RUA</span></div>
+<div><strong>Bestehenden DMARC-Eintrag ersetzen</strong></div>
+<pre>_dmarc.muster-ag.example  TXT  v=DMARC1; p=none; rua=mailto:dmarc@muster-ag.example</pre>
+<div class="meta">→ Postfach oder Weiterleitung dmarc@muster-ag.example anlegen. Auswerten mit pruefstand --dmarc-berichte ORDNER. Alternative: Cloudflare «Email» &gt; «DMARC Management» setzt rua automatisch.</div>
+</div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>DMARC scharf schalten</span><span class="id">DMARC-P-NONE</span></div>
+<div><strong>Phase 2 – wenn alle echten Dienste DMARC bestehen</strong></div>
+<pre>_dmarc.muster-ag.example  TXT  v=DMARC1; p=quarantine; rua=mailto:dmarc@muster-ag.example</pre>
+<div><strong>Phase 3 – Ziel</strong></div>
+<pre>_dmarc.muster-ag.example  TXT  v=DMARC1; p=reject; rua=mailto:dmarc@muster-ag.example</pre>
+<div class="meta">→ Erst wenn die Berichte einige Wochen sauber sind.</div>
+</div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>SPF streng machen (optional)</span><span class="id">SPF-SOFTFAIL</span></div>
+<div><strong>Bestehenden SPF-Eintrag ersetzen</strong></div>
+<pre>muster-ag.example  TXT  v=spf1 include:spf.mail.hostpoint.ch include:_spf.buchhaltung.example -all</pre>
+<div class="meta">→ Nur wenn ALLE Versanddienste im Eintrag stehen (DMARC-Berichte prüfen).</div>
+</div>
+<div class="befund" style="--farbe:var(--hinweis)"><div class="kopf"><span>CAA-Eintrag anlegen</span><span class="id">CAA-FEHLT</span></div>
+<div><strong>Ihre Zertifizierungsstelle erlauben</strong></div>
+<pre>muster-ag.example  CAA  0 issue &quot;&lt;kennung-ihrer-zertifizierungsstelle&gt;&quot;</pre>
+<div class="meta">→ Kennung beim Webhoster erfragen (z. B. letsencrypt.org).</div>
+<div><strong>Optional: Meldungen bei Fehlversuchen</strong></div>
+<pre>muster-ag.example  CAA  0 iodef &quot;mailto:security@muster-ag.example&quot;</pre>
+<div><strong>Wichtig</strong></div>
+<div class="meta">→ ALLE Zertifizierungsstellen aufnehmen, die Sie oder Ihr Hoster nutzen – sonst kann die automatische Zertifikatserneuerung scheitern. Cloudflare ergänzt bei Universal SSL seine eigenen CAA-Einträge automatisch (laut Cloudflare-Doku).</div>
+</div>
+<footer>Erstellt mit pruefstand 1.3.0 – passiver Check: Es wurden nur öffentliche
 DNS-Daten abgefragt und die Webseite normal aufgerufen – ohne Zugriff auf Ihre Systeme. Der Bericht zeigt den Stand vom
 12.11.2026 und ersetzt keine vollständige Sicherheitsprüfung.</footer>
 </main></body></html>
