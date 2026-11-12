@@ -5,6 +5,7 @@ Ein ganz normaler Besuch der Startseite (wie im Browser) – kein Scan, keine An
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from pruefstand.dnsabfrage import Dns
@@ -12,6 +13,7 @@ from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz, NetzFehler
 
 HSTS_MIN = 15552000        # 180 Tage – gängige Mindestempfehlung
+GENERATOR = re.compile(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE)
 HEADER = {
     "content-security-policy": "Content-Security-Policy",
     "x-content-type-options": "X-Content-Type-Options",
@@ -122,6 +124,38 @@ def pruefe(dns: Dns, domain: str, netz: Netz, jetzt: datetime | None = None) -> 
                               "Der Webserver verrät seine Software-Version.", server.strip(),
                               "Versionsangabe ausblenden – erleichtert Angreifern die Suche nach "
                               "bekannten Lücken."))
+
+    # Cookies ohne Schutz-Attribute
+    schwach = []
+    for c in s.cookies:
+        name = c.split("=", 1)[0].strip()
+        attr = c.lower()
+        fehlt = [a for a, k in (("Secure", "secure"), ("HttpOnly", "httponly"), ("SameSite", "samesite"))
+                 if k not in attr]
+        if fehlt:
+            schwach.append(f"{name}: ohne {', '.join(fehlt)}")
+    if schwach:
+        befunde.append(Befund("WEB-COOKIES-UNSICHER", "Web", Status.HINWEIS,
+                              f"{len(schwach)} Cookie(s) ohne empfohlene Schutz-Attribute.",
+                              "\n".join(schwach[:10]),
+                              "Cookies mit Secure, HttpOnly und SameSite setzen (CMS/Webserver). "
+                              "Besonders wichtig für Anmelde-Cookies."))
+
+    # CMS-Version im Quelltext (z. B. <meta name="generator" content="WordPress 6.4.2">)
+    if (m := GENERATOR.search(s.text)) and any(ch.isdigit() for ch in m.group(1)):
+        befunde.append(Befund("WEB-CMS-VERSION", "Web", Status.HINWEIS,
+                              f"Die Webseite verrät ihr CMS mit Version: {m.group(1)[:60]}.", "",
+                              "CMS aktuell halten und die Versionsangabe ausblenden. Veraltete CMS "
+                              "(v. a. WordPress-Plugins) sind ein häufiger Einstieg für Angreifer."))
+
+    # Alte TLS-Versionen (1.0/1.1, seit 2021 offiziell veraltet – RFC 8996)
+    alt = netz.alte_tls(host) if hasattr(netz, "alte_tls") else None
+    if alt is True:
+        befunde.append(Befund("WEB-TLS-ALT", "Web", Status.WARNUNG,
+                              "Der Webserver akzeptiert noch TLS 1.0/1.1 (veraltet, unsicher).", host,
+                              "TLS 1.0 und 1.1 abschalten; nur TLS 1.2 und 1.3 erlauben."))
+    elif alt is False:
+        befunde.append(Befund("WEB-TLS-OK", "Web", Status.OK, "Keine veralteten TLS-Versionen (1.0/1.1)."))
 
     # 4. security.txt (RFC 9116): Wo melden Finder eine Sicherheitslücke?
     try:

@@ -8,7 +8,7 @@ from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz
 from pruefstand.sprache import fuer
-from pruefstand.pruefungen import aehnliche, caa, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, subdomains, web
+from pruefstand.pruefungen import aehnliche, caa, cloud, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, subdomains, web
 
 
 @dataclass
@@ -79,6 +79,7 @@ class Ergebnis:
 PRUEFUNGEN = [
     ("NS", ns.pruefe, False),
     ("MX", mx.pruefe, False),
+    ("CLOUD", cloud.pruefe, False),
     ("SPF", spf.pruefe, False),
     ("DMARC", dmarc.pruefe, False),
     ("DKIM", dkim.pruefe, False),

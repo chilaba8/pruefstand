@@ -948,3 +948,55 @@ def test_sub_fingerabdruck():
 
 def test_sub_alles_ok():
     assert ids(subdomains.pruefe(FakeDns({}), "muster-ag.ch")) == {"SUB-OK"}
+
+
+# --- Cloud + Web erweitert ---------------------------------------------------------------
+
+from pruefstand.pruefungen import cloud  # noqa: E402
+
+
+def test_cloud_m365_ohne_spf():
+    d = FakeDns({("muster-ag.ch", "TXT"): ["MS=ms12345678", "v=spf1 include:spf.mail.hostpoint.ch -all"],
+                 ("autodiscover.muster-ag.ch", "CNAME"): ["autodiscover.outlook.com."],
+                 ("muster-ag.ch", "MX"): ["10 mx1.mail.hostpoint.ch."]})
+    befunde = {b.id: b for b in cloud.pruefe(d, "muster-ag.ch")}
+    assert "Exchange Online" in befunde["CLOUD-M365"].detail
+    assert "CLOUD-M365-NICHT-IM-SPF" in befunde
+
+
+def test_cloud_m365_richtig_eingerichtet():
+    d = FakeDns({("muster-ag.ch", "TXT"): ["MS=ms1", "v=spf1 include:spf.protection.outlook.com -all"],
+                 ("muster-ag.ch", "MX"): ["0 muster-ag-ch.mail.protection.outlook.com."]})
+    assert ids(cloud.pruefe(d, "muster-ag.ch")) == {"CLOUD-M365"}
+
+
+def test_cloud_nur_search_console_ist_kein_google_workspace():
+    d = FakeDns({("muster-ag.ch", "TXT"): ["google-site-verification=abc"]})
+    assert cloud.pruefe(d, "muster-ag.ch") == []
+
+
+class FakeNetzTls(FakeNetz):
+    def __init__(self, seiten, zert, alt):
+        super().__init__(seiten, zert)
+        self.alt = alt
+
+    def alte_tls(self, host, port=443):
+        return self.alt
+
+
+def test_web_cookies_cms_alte_tls():
+    seiten = dict(GUTE_SEITEN)
+    seiten["https://beispiel.ch/"] = Antwort(200, "https://beispiel.ch/", GUTE_SEITEN["https://beispiel.ch/"].header,
+                                             '<meta name="generator" content="WordPress 6.1.1">',
+                                             ["PHPSESSID=abc; path=/", "ok=1; Secure; HttpOnly; SameSite=Lax"])
+    netz = FakeNetzTls(seiten, Zertifikat(JETZT + timedelta(days=60), "X"), True)
+    befunde = {b.id: b for b in web.pruefe(FakeDns(WEB_DNS), "beispiel.ch", netz, JETZT)}
+    assert "PHPSESSID" in befunde["WEB-COOKIES-UNSICHER"].detail and "ok:" not in befunde["WEB-COOKIES-UNSICHER"].detail
+    assert "WordPress 6.1.1" in befunde["WEB-CMS-VERSION"].titel
+    assert befunde["WEB-TLS-ALT"].status == Status.WARNUNG
+
+
+def test_web_tls_nicht_pruefbar_kein_befund():
+    netz = FakeNetzTls(GUTE_SEITEN, Zertifikat(JETZT + timedelta(days=60), "X"), None)
+    i = ids(web.pruefe(FakeDns(WEB_DNS), "beispiel.ch", netz, JETZT))
+    assert "WEB-TLS-ALT" not in i and "WEB-TLS-OK" not in i
