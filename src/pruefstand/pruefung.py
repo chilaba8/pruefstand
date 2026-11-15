@@ -8,7 +8,8 @@ from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz
 from pruefstand.sprache import fuer
-from pruefstand.pruefungen import aehnliche, caa, cloud, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, spf, subdomains, web
+from pruefstand.pruefungen import (aehnliche, caa, cloud, dkim, dmarc, dnsbl, dnssec, mta_sts, mx, ns, shodan,
+                                   spf, subdomains, web)
 
 
 @dataclass
@@ -106,6 +107,7 @@ PRUEFUNGEN = [
     ("MTASTS", mta_sts.pruefe, True),
     ("WEB", web.pruefe, True),
     ("AEHNLICH", aehnliche.pruefe, False),
+    ("SHODAN", shodan.pruefe, True),      # nur mit online_quellen (fragt Shodan + CISA)
 ]
 # Prüfungen, die Befunde mit weiteren Präfixen liefern (für den Verlauf-Vergleich)
 ZUSATZ_GRUPPEN = {"MTASTS": ["TLSRPT"]}
@@ -114,16 +116,20 @@ ZUSATZ_GRUPPEN = {"MTASTS": ["TLSRPT"]}
 def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = None,
                   aehnliche_suchen: bool = True, netz: Netz | None = None,
                   online_quellen: bool = False, web: bool = True,
-                  subdomains_suchen: bool = True) -> Ergebnis:
+                  subdomains_suchen: bool = True, eigene_domains: dict[str, str] | None = None) -> Ergebnis:
     """netz=None → nur DNS (keine Verbindung zur Webseite).
-    online_quellen → ähnliche Domains zusätzlich über RDAP/crt.sh nachschlagen (braucht netz)."""
+    online_quellen → externe Dienste fragen: RDAP/crt.sh/certspotter (ähnliche Domains,
+    Subdomains) und Shodan InternetDB + CISA KEV (offene Dienste). Braucht netz."""
     erg = Ergebnis(domain)
     for name, funktion, braucht_netz in PRUEFUNGEN:
         if name == "AEHNLICH" and not aehnliche_suchen:
             continue
         if name == "SUB" and not subdomains_suchen:
             continue
-        if braucht_netz and (netz is None or not web):
+        if name == "SHODAN":
+            if not online_quellen or netz is None:
+                continue
+        elif braucht_netz and (netz is None or not web):
             continue
         erg.ausgefuehrt += [name] + ZUSATZ_GRUPPEN.get(name, [])
         try:
@@ -133,7 +139,8 @@ def pruefe_domain(dns: Dns, domain: str, dkim_selektoren: list[str] | None = Non
                 erg.befunde += subdomains.pruefe(dns, domain, netz if web else None,
                                                  netz if online_quellen else None)
             elif name == "AEHNLICH":
-                erg.befunde += aehnliche.pruefe(dns, domain, netz if online_quellen else None)
+                erg.befunde += aehnliche.pruefe(dns, domain, netz if online_quellen else None,
+                                                eigene=eigene_domains)
             elif braucht_netz:
                 erg.befunde += funktion(dns, domain, netz)
             else:

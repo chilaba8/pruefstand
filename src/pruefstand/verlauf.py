@@ -64,10 +64,12 @@ def _relevante(daten: dict, gruppen: set[str]) -> dict[str, dict]:
 
 
 def _aehnliche_domains(daten: dict) -> set[str]:
+    """Fremde ähnliche Domains (eigene, vom Kunden bestätigte zählen nicht)."""
+    domains: set[str] = set()
     for b in daten.get("befunde", []):
         if b["id"].startswith("AEHNLICH-"):
-            return {t["domain"] for t in b.get("daten", {}).get("treffer", [])}
-    return set()
+            domains |= {t["domain"] for t in b.get("daten", {}).get("treffer", [])}
+    return domains
 
 
 def vergleiche(vorher: dict, jetzt: dict) -> Aenderungen:
@@ -108,20 +110,40 @@ class Verlauf:
         d = self._domain_ordner(domain)
         if not d.is_dir():
             return None
-        for datei in sorted(d.glob("*.json"), reverse=True):
+        for datei in sorted(d.glob("[0-9]*.json"), reverse=True):   # nur Berichte, nicht eigene.json
             try:
                 return json.loads(datei.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue     # kaputte Datei überspringen, ältere versuchen
         return None
 
-    def speichere(self, domain: str, json_text: str) -> Path:
+    def _ordner_anlegen(self, domain: str) -> Path:
         d = self._domain_ordner(domain)
         d.mkdir(parents=True, exist_ok=True)
         try:
             d.chmod(0o700)                 # nur für den eigenen Benutzer lesbar
         except OSError:
             pass
-        ziel = d / f"{datetime.now():%Y-%m-%dT%H%M%S}.json"
+        return d
+
+    def speichere(self, domain: str, json_text: str) -> Path:
+        ziel = self._ordner_anlegen(domain) / f"{datetime.now():%Y-%m-%dT%H%M%S}.json"
         ziel.write_text(json_text, encoding="utf-8")
         return ziel
+
+    # --- Eigene Domains: vom Kunden bestätigt («die gehört uns») ----------------------
+    def eigene(self, domain: str) -> dict[str, str]:
+        """{ähnliche Domain: Bestätigungsdatum (ISO)} für diese Hauptdomain."""
+        datei = self._domain_ordner(domain) / "eigene.json"
+        try:
+            daten = json.loads(datei.read_text(encoding="utf-8"))
+            return {str(k): str(v) for k, v in daten.get("eigene", {}).items()}
+        except (OSError, json.JSONDecodeError, AttributeError):
+            return {}
+
+    def setze_eigene(self, domain: str, eigene: dict[str, str]) -> Path:
+        datei = self._ordner_anlegen(domain) / "eigene.json"
+        datei.write_text(json.dumps({"domain": domain, "eigene": dict(sorted(eigene.items())),
+                                     "hinweis": "Vom Kunden als eigene Domain bestätigt"},
+                                    ensure_ascii=False, indent=2), encoding="utf-8")
+        return datei

@@ -23,6 +23,9 @@ AMPEL = {
 }
 
 
+SCHMAL = 80   # darunter: Handy oder geteiltes Terminal
+
+
 def terminal(erg: Ergebnis, console: Console | None = None) -> None:
     c = console or Console()
     status, satz = erg.faelschungsschutz
@@ -47,10 +50,14 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
         text, stil = AMPEL[b.status]
         tabelle.add_row(Text(text, style=stil), b.pruefung, b.titel)
     c.print(tabelle)
-    c.print("[bold red]✖ Sofort handeln[/] – Betrugsgefahr oder Ihre E-Mails/Ihre Website fallen aus.  "
-            "[yellow]▲ Bald beheben[/] – Schutz lückenhaft oder nicht prüfbar.  "
-            "[cyan]● Bei Gelegenheit verbessern[/] – geringes Risiko.  "
-            "[green]✔ In Ordnung[/]", style="dim")
+    legende = ["[bold red]✖ Sofort handeln[/] – Betrugsgefahr oder Ihre E-Mails/Ihre Website fallen aus.",
+               "[yellow]▲ Bald beheben[/] – Schutz lückenhaft oder nicht prüfbar.",
+               "[cyan]● Bei Gelegenheit verbessern[/] – geringes Risiko.",
+               "[green]✔ In Ordnung[/]"]
+    # Passt sie nicht in eine Zeile (Handy, geteiltes Terminal): ein Punkt pro Zeile,
+    # sonst bricht rich mitten im Satz um
+    eine_zeile = len("  ".join(Text.from_markup(x).plain for x in legende)) <= c.width
+    c.print(("  " if eine_zeile else "\n").join(legende), style="dim")
 
     # Details nur für das, was zu tun ist – das Schlimmste zuerst
     offen = sorted((b for b in erg.befunde if b.empfehlung and b.status >= Status.HINWEIS),
@@ -62,7 +69,9 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
             text, stil = AMPEL[b.status]
             c.print(f"\n[{stil}]{i}. {b.titel}[/{stil}]  [dim]({b.id})[/dim]")
             if b.detail:
-                c.print(Text(b.detail, style="dim"), soft_wrap=True)
+                # Breites Terminal: nicht umbrechen (DNS-Einträge bleiben am Stück kopierbar).
+                # Schmal (Handy): umbrechen, lange Einträge notfalls mitten im Wort.
+                c.print(Text(b.detail, style="dim", overflow="fold"), soft_wrap=c.width >= SCHMAL)
             c.print(f"→ {b.empfehlung}")
             if b.anleitung:
                 c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {b.anleitung}")

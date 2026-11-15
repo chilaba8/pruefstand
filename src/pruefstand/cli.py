@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 from rich.console import Console
@@ -52,19 +54,49 @@ def _exit_code(schlimmster: Status) -> int:
     return EXIT_OK
 
 
-def _pruefe(dns: Dns, domain: str, args) -> Ergebnis:
+def _eigene_aus_args(args, domain: str) -> tuple[dict[str, str], set[str]]:
+    """--eigene-domain / --nicht-eigene → ({domain: heute}, {zu entfernen}). ValueError bei Unsinn."""
+    heute = date.today().isoformat()
+    neu = {d: heute for d in (normalisiere(e) for e in args.eigene_domain) if d != domain}
+    weg = {normalisiere(e) for e in args.nicht_eigene}
+    return neu, weg
+
+
+def _eigene(v: verlauf.Verlauf | None, domain: str, neu: dict[str, str], weg: set[str]) -> dict[str, str]:
+    """Bestätigte eigene Domains laden, Änderungen anwenden und (mit Verlauf) speichern."""
+    eigene = v.eigene(domain) if v else {}
+    if not (neu or weg):
+        return eigene
+    eigene = {d: datum for d, datum in eigene.items() if d not in weg}
+    for d, datum in neu.items():
+        eigene.setdefault(d, datum)             # erstes Bestätigungsdatum behalten
+    if v:
+        v.setze_eigene(domain, eigene)
+        if neu:
+            print(f"Als eigene Domain von {domain} gespeichert: {', '.join(sorted(neu))}", file=sys.stderr)
+        if weg:
+            print(f"Nicht mehr als eigene Domain markiert: {', '.join(sorted(weg))}", file=sys.stderr)
+    else:
+        print("Hinweis: ohne Verlauf gelten eigene Domains nur für diese Prüfung (nicht gespeichert).",
+              file=sys.stderr)
+    return eigene
+
+
+def _pruefe(dns: Dns, domain: str, args, neu: dict[str, str] | None = None,
+            weg: set[str] | None = None) -> Ergebnis:
     """Prüft eine Domain. Wirft ValueError, wenn sie nicht existiert, DnsFehler bei DNS-Problemen."""
     if not dns.existiert(domain):
         raise ValueError(f"Die Domain {domain} existiert nicht.")
+    v = None if args.ohne_verlauf else verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
+    eigene = _eigene(v, domain, neu or {}, weg or set())
     netz = Netz() if (not args.ohne_web or args.online_quellen) else None
     erg = pruefe_domain(dns, domain, args.dkim_selektor, not args.ohne_aehnliche, netz,
                         online_quellen=args.online_quellen, web=not args.ohne_web,
-                        subdomains_suchen=not args.ohne_subdomains)
+                        subdomains_suchen=not args.ohne_subdomains, eigene_domains=eigene)
     anleitungen.ergaenze(erg)
     normen.ergaenze(erg)
     erg.setze_sprache(args.sprache)
-    if not args.ohne_verlauf:
-        v = verlauf.Verlauf(Path(args.verlauf) if args.verlauf else None)
+    if v:
         vorher = v.letzter(domain)
         jetzt = bericht.als_json(erg)
         if vorher:
@@ -92,8 +124,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--ohne-subdomains", action="store_true",
                    help="Suche nach verwaisten Subdomains überspringen")
     p.add_argument("--online-quellen", action="store_true",
-                   help="ähnliche Domains zusätzlich bei RDAP (Registrierdatum) und crt.sh "
-                        "(Zertifikate) nachschlagen – sendet diese Domainnamen an externe Dienste; langsam (1–3 Min.)")
+                   help="externe Dienste fragen: RDAP (Registrierdatum ähnlicher Domains), crt.sh/"
+                        "certspotter (Zertifikate, Subdomains), Shodan InternetDB (offene Dienste der "
+                        "eigenen IPs) und CISA KEV – sendet Domainnamen/IPs an diese Dienste; langsam (1–3 Min.)")
     p.add_argument("--verlauf", metavar="ORDNER",
                    help="Ordner für frühere Ergebnisse (Standard: ~/.local/share/pruefstand/verlauf)")
     p.add_argument("--ohne-verlauf", action="store_true",
@@ -101,7 +134,8 @@ def _parser() -> argparse.ArgumentParser:
 
     einzel = p.add_argument_group("eine Domain")
     einzel.add_argument("--json", action="store_true", help="Ergebnis als JSON ausgeben")
-    einzel.add_argument("--html", metavar="DATEI", help="Bericht als HTML-Datei speichern")
+    einzel.add_argument("--html", metavar="DATEI",
+                        help="Bericht als HTML-Datei speichern («-» = auf die Standardausgabe)")
     einzel.add_argument("--pdf", metavar="DATEI", help="Bericht als PDF speichern (braucht Chromium)")
     einzel.add_argument("--firma", metavar="NAME", help="Firmenname für den Berichtskopf")
     einzel.add_argument("--korrekturen", action="store_true",
@@ -119,7 +153,11 @@ def _parser() -> argparse.ArgumentParser:
     mail = p.add_argument_group("eine verdächtige E-Mail prüfen («Ist diese E-Mail echt?»)")
     mail.add_argument("--mail", metavar="DATEI", help="E-Mail als .eml-Datei (lokal geprüft)")
     mail.add_argument("--eigene-domain", metavar="DOMAIN", action="append", default=[],
-                      help="Ihre Domain(s) – erkennt Absender, die ähnlich aussehen (mehrfach möglich)")
+                      help="E-Mail: Ihre Domain(s) – erkennt Absender, die ähnlich aussehen. Domain-Prüfung: "
+                           "ähnliche Domain, die laut Kunde ihm gehört – wird gespeichert, nicht mehr als "
+                           "verdächtig gemeldet, aber auf Schutz geprüft (mehrfach möglich)")
+    p.add_argument("--nicht-eigene", metavar="DOMAIN", action="append", default=[],
+                   help="Markierung «eigene Domain» wieder entfernen (mehrfach möglich)")
 
     rua = p.add_argument_group("DMARC-Berichte auswerten")
     rua.add_argument("--dmarc-berichte", metavar="ORDNER", nargs="+",
@@ -149,7 +187,38 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+def _dns(args) -> Dns:
+    """DNS-Schicht anlegen. Mit --dns: sicherstellen, dass der Server rekursiv ist
+    (ein autoritativer Server liefert falsche Befunde und verschmutzt den Verlauf)."""
+    dns = Dns(args.dns)
+    if dns.hinweis:
+        print(f"Hinweis: {dns.hinweis}", file=sys.stderr)
+    if args.dns and not dns.ist_rekursiv():
+        raise ValueError(
+            f"{args.dns} ist kein rekursiver DNS-Server (beantwortet nur die eigene Zone). "
+            "Damit fehlen z. B. DKIM-Einträge bei anderen Anbietern und der DS-Eintrag in der "
+            "übergeordneten Zone – das Ergebnis wäre falsch. Bitte einen Resolver angeben, "
+            "z. B. --dns 9.9.9.9, oder --dns weglassen.")
+    return dns
+
+
 def main(argv: list[str] | None = None) -> int:
+    """Einstieg. Unerwartete Fehler → eine verständliche Zeile statt eines Python-Tracebacks
+    (mit PRUEFSTAND_DEBUG=1 kommt der vollständige Traceback, z. B. für Fehlermeldungen)."""
+    try:
+        return _main(argv)
+    except KeyboardInterrupt:
+        print("\nAbgebrochen.", file=sys.stderr)
+        return EXIT_FEHLER
+    except Exception as e:  # noqa: BLE001 – absichtlich: letzte Schutzschicht
+        if os.environ.get("PRUEFSTAND_DEBUG"):
+            raise
+        print(f"Unerwarteter Fehler: {e.__class__.__name__}: {e}\n"
+              "Bitte erneut versuchen. Für Details: PRUEFSTAND_DEBUG=1 pruefstand …", file=sys.stderr)
+        return EXIT_FEHLER
+
+
+def _main(argv: list[str] | None = None) -> int:
     p = _parser()
     args = p.parse_args(argv)
     modi = [m for m in (args.domain, args.liste, args.mail, args.dmarc_berichte, args.oberflaeche) if m]
@@ -169,7 +238,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Fehler beim Logo: {e}", file=sys.stderr)
         return EXIT_FEHLER
 
-    dns = Dns(args.dns)
+    try:
+        dns = _dns(args)
+    except (ValueError, DnsFehler) as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        return EXIT_FEHLER
     if args.liste:
         return _liste(dns, args, absender)
     return _einzeln(dns, args, absender)
@@ -179,6 +252,11 @@ def _oberflaeche(args) -> int:
     from pruefstand import oberflaeche
 
     absender = Absender(args.absender, lade_logo(args.logo) if args.logo else None)
+    try:
+        _dns(args)          # --dns einmal beim Start prüfen, nicht bei jeder Anfrage
+    except (ValueError, DnsFehler) as e:
+        print(f"Fehler: {e}", file=sys.stderr)
+        return EXIT_FEHLER
 
     def domain_pruefen(eingabe: str, aehnliche_: bool, web_: bool) -> str:
         a = _parser().parse_args(["x"])
@@ -232,7 +310,8 @@ def _dmarc_berichte(args) -> int:
 
 def _einzeln(dns: Dns, args, absender: Absender) -> int:
     try:
-        erg = _pruefe(dns, normalisiere(args.domain), args)
+        domain = normalisiere(args.domain)
+        erg = _pruefe(dns, domain, args, *_eigene_aus_args(args, domain))
     except ValueError as e:
         print(f"Fehler: {e}", file=sys.stderr)
         return EXIT_FEHLER
@@ -241,7 +320,14 @@ def _einzeln(dns: Dns, args, absender: Absender) -> int:
         return EXIT_FEHLER
 
     korr = korrektur.erzeuge(erg)
-    if args.json:
+    html_stdout = args.html == "-"     # «--html -»: HTML auf die Standardausgabe (z. B. für Apps/Handy)
+    if html_stdout and args.json:
+        print("Fehler: --json und --html - schreiben beide auf die Standardausgabe. Bitte nur eins.",
+              file=sys.stderr)
+        return EXIT_FEHLER
+    if html_stdout:
+        pass                            # keine Terminal-Ausgabe, sonst wäre das HTML kaputt
+    elif args.json:
         daten = json.loads(bericht.als_json(erg))
         daten["korrekturen"] = korrektur.als_dicts(korr)
         print(json.dumps(daten, ensure_ascii=False, indent=2))
@@ -255,7 +341,9 @@ def _einzeln(dns: Dns, args, absender: Absender) -> int:
 
     if args.html or args.pdf:
         html = bericht_html.erzeuge(erg, args.firma, absender)
-        if args.html:
+        if html_stdout:
+            sys.stdout.write(html)
+        elif args.html:
             Path(args.html).write_text(html, encoding="utf-8")
             print(f"HTML-Bericht gespeichert: {args.html}", file=sys.stderr)
         if args.pdf:
@@ -290,6 +378,9 @@ def _liste(dns: Dns, args, absender: Absender) -> int:
         return EXIT_FEHLER
     for f in fehler:
         print(f"Warnung: {f}", file=sys.stderr)
+    if args.eigene_domain or args.nicht_eigene:
+        print("Warnung: --eigene-domain/--nicht-eigene gilt nur für eine einzelne Domain "
+              "(pruefstand kunde.ch --eigene-domain …) und wird hier ignoriert.", file=sys.stderr)
     if not eintraege:
         print("Fehler: Die Liste enthält keine gültige Domain.", file=sys.stderr)
         return EXIT_FEHLER

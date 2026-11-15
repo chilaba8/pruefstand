@@ -102,9 +102,28 @@ Weitere Optionen:
 | `--sprache de-DE` | Rechtschreibung für Deutschland (ß, „…“); Standard ist `de-CH` |
 | `--ohne-web` | nur DNS, Webseite und MTA-STS-Datei nicht abrufen |
 | `--ohne-aehnliche` / `--ohne-subdomains` | diese Suchen überspringen |
-| `--online-quellen` | zusätzlich RDAP (Registrierdatum) und crt.sh (Zertifikate, Subdomains) – langsam, sendet Domainnamen an externe Dienste |
+| `--online-quellen` | zusätzlich RDAP (Registrierdatum), crt.sh bzw. certspotter (Zertifikate, Subdomains) und **offene Dienste**: Shodan InternetDB + CISA-Liste aktiv ausgenutzter Lücken (KEV) für die eigenen IPs – langsam, sendet Domainnamen/IPs an externe Dienste |
+| `--html -` | HTML-Bericht auf die Standardausgabe statt in eine Datei (z. B. für Apps, Handy) |
+| `--dns IP` | eigenen DNS-Server verwenden – muss **rekursiv** sein (ein autoritativer Server wird abgelehnt) |
 | `--ohne-verlauf` / `--verlauf ORDNER` | Vergleich mit früheren Prüfungen aus / anderer Ordner |
 | `--dkim-selektor NAME` | zusätzlichen DKIM-Selektor prüfen |
+| `--eigene-domain DOMAIN` | ähnliche Domain, die laut Kunde **ihm gehört**: wird im Verlauf gespeichert (mit Datum), nicht mehr als verdächtig gemeldet, aber weiter geprüft (SPF/DMARC vorhanden? noch registriert?) |
+| `--nicht-eigene DOMAIN` | diese Markierung wieder entfernen |
+
+### Ähnliche Domains: eigene oder fremde?
+
+pruefstand zeigt bei jeder ähnlichen Domain ein **Indiz**, wenn sie dieselben Nameserver oder
+Mailserver wie die Hauptdomain nutzt («gehört evtl. Ihnen» – ein Hinweis, kein Beweis).
+Bestätigt der Kunde, dass sie ihm gehört:
+
+```bash
+pruefstand muster-ag.ch --eigene-domain musterag.ch --korrekturen
+```
+
+Ab dann erscheint `musterag.ch` als *eigene Domain* – und pruefstand prüft, ob sie selbst
+geschützt ist. Eine Schutz-Domain ohne SPF/DMARC kann nämlich genauso für gefälschte E-Mails
+benutzt werden; `--korrekturen` liefert die fertigen Einträge (Null-MX, `v=spf1 -all`,
+`v=DMARC1; p=reject`). Läuft eine eigene Domain ab, meldet die nächste Prüfung das.
 
 ### Überwachung (monatlich, mit Benachrichtigung)
 
@@ -125,7 +144,7 @@ docker build -t pruefstand .
 docker run --rm pruefstand beispiel.ch
 ```
 
-Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler.
+Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler. Bei einem unerwarteten Fehler erscheint eine Zeile statt eines Python-Tracebacks; den vollständigen Traceback zeigt `PRUEFSTAND_DEBUG=1 pruefstand …`. Ohne DNS-Konfiguration (z. B. Android/Termux) nimmt pruefstand `$PREFIX/etc/resolv.conf` oder 1.1.1.1/9.9.9.9.
 
 ## Datenschutz und Sicherheit
 
@@ -135,7 +154,7 @@ Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fe
 - E-Mail-Prüfung: komplett lokal; kein Link wird geöffnet, kein Anhang ausgeführt.
 - DMARC-Berichte: lokal; nur die Namen der Server-IPs werden per DNS nachgeschlagen.
   Berichte sind fremde Daten: XML wird mit defusedxml gelesen, Archive mit Grössenlimit.
-- Externe Dienste (RDAP, crt.sh) nur mit `--online-quellen`. Sperrlisten per DNS
+- Externe Dienste (RDAP, crt.sh, certspotter, Shodan InternetDB, CISA KEV) nur mit `--online-quellen`. Offene Ports kommen aus den Daten von Shodan – pruefstand selbst scannt keine Ports. Sperrlisten per DNS
   (Spamhaus: frei für geringe, nicht-kommerzielle Nutzung).
 - Verlauf nur auf Ihrem PC (`~/.local/share/pruefstand/verlauf`, nur für Sie lesbar).
 - Oberfläche nur auf 127.0.0.1, mit Schutz gegen fremde Webseiten (Host-Prüfung, Token, CSP).

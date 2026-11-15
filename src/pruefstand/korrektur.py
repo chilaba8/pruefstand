@@ -350,6 +350,33 @@ def _web_korrekturen(erg: Ergebnis, d: str, jetzt: datetime) -> list[Korrektur]:
     return k
 
 
+def _eigene_korrekturen(erg: Ergebnis) -> list[Korrektur]:
+    """Eigene ähnliche Domains (vom Kunden bestätigt), die nicht geschützt sind."""
+    b = _befund(erg, "AEHNLICH-EIGENE-UNGESCHUETZT")
+    if not b:
+        return []
+    k = []
+    for i in b.daten.get("eigene", []):
+        if not i.get("probleme") or i.get("abgelaufen") or i.get("nicht_pruefbar"):
+            continue
+        d, p = i["domain"], " ".join(i["probleme"])
+        if i.get("mail"):
+            k.append(Korrektur(b.id, f"{d} absichern (Domain mit E-Mail)", [
+                Schritt("text", f"SPF und DMARC für {d} wie bei {erg.domain} einrichten",
+                        hinweis="Diese Domain empfängt E-Mails – darum nicht einfach «alles sperren». "
+                                f"Gleiches Vorgehen wie für {erg.domain} (DMARC in Phasen)."),
+            ]))
+            continue
+        schritte = [Schritt("dns", "Null-MX: «hier gibt es keine E-Mail»", d, "MX", "0 .",
+                            "Nur wenn die Domain wirklich nie E-Mails empfangen soll.")]
+        if "SPF" in p:
+            schritte.append(Schritt("dns", "SPF: niemand darf senden", d, "TXT", "v=spf1 -all"))
+        if "DMARC" in p:
+            schritte.append(Schritt("dns", "DMARC: alles abweisen", f"_dmarc.{d}", "TXT", "v=DMARC1; p=reject"))
+        k.append(Korrektur(b.id, f"{d} gegen Missbrauch sperren (eigene Domain ohne E-Mail)", schritte))
+    return k
+
+
 def _sub_korrekturen(erg: Ergebnis) -> list[Korrektur]:
     k = []
     for bid in ("SUB-UEBERNEHMBAR", "SUB-VERWAIST"):
@@ -369,7 +396,7 @@ def erzeuge(erg: Ergebnis, jetzt: datetime | None = None) -> list[Korrektur]:
     # Domain ohne E-Mail: nur sperren (SPF -all, DMARC reject) – keine Einführung in Phasen
     mail = [] if ohne_mail else _dmarc_korrekturen(erg, d) + _spf_korrekturen(erg, d)
     return (_sub_korrekturen(erg) + mail + ohne_mail + _mta_sts_korrekturen(erg, d, jetzt)
-            + _caa_korrektur(erg, d) + _web_korrekturen(erg, d, jetzt))
+            + _caa_korrektur(erg, d) + _web_korrekturen(erg, d, jetzt) + _eigene_korrekturen(erg))
 
 
 def als_markdown(erg: Ergebnis, korrekturen: list[Korrektur]) -> str:

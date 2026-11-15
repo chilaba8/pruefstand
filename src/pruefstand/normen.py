@@ -53,6 +53,7 @@ ZUORDNUNG: list[tuple[str, list[str]]] = [
     ("WEB-CMS", [ISO["8.8"], ISO["8.9"], IKT_SCHUETZEN]),
     ("WEB-SECURITYTXT", [ISO["8.8"], IKT_ERKENNEN]),
     ("SUB-", [ISO["5.9"], ISO["8.9"], IKT_IDENTIFIZIEREN]),
+    ("SHODAN-", [ISO["8.8"], ISO["8.20"], IKT_IDENTIFIZIEREN]),
     ("AEHNLICH-", [ISO["5.7"], IKT_ERKENNEN]),
     ("CLOUD-M365-NICHT", [ISO["8.9"], ISO["5.14"], IKT_SCHUETZEN]),
 ]

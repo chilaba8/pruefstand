@@ -7,7 +7,7 @@ mit der echten Domain der Firma.
 
 Vorgehen (passiv):
   1. Häufige Subdomain-Namen per DNS abfragen (ca. 40 Abfragen), mit --online-quellen
-     zusätzlich alle Namen aus öffentlichen Zertifikaten (crt.sh).
+     zusätzlich alle Namen aus öffentlichen Zertifikaten (crt.sh; fällt es aus: certspotter).
   2. CNAME-Ziel prüfen: existiert es nicht mehr (NXDOMAIN) → verwaist.
   3. Bei bekannten Diensten: Startseite einmal normal aufrufen und nach der typischen
      Fehlermeldung «diese Seite gibt es nicht» suchen (Hinweis, kein Beweis).
@@ -65,19 +65,46 @@ def dienst_fuer(ziel: str) -> str | None:
 MAX_AUS_ZERTIFIKATEN = 200   # passiv bleiben: grosse Firmen haben tausende Namen in crt.sh
 
 
+def _namen_aus(roh: list[str], domain: str) -> set[str]:
+    aus = set()
+    for n in roh:
+        n = str(n).strip().lower().lstrip("*.").rstrip(".")
+        if n.endswith("." + domain) and n != domain:
+            aus.add(n)
+    return aus
+
+
+def _crt_sh(netz: Netz, domain: str) -> set[str] | None:
+    """None = crt.sh hat nicht geantwortet (kommt oft vor: überlastet, 502, leere Seite)."""
+    try:
+        a = netz.hole(f"https://crt.sh/?q=%25.{domain}&output=json", max_bytes=4 << 20)
+        if a.status != 200:
+            return None
+        return _namen_aus([n for e in json.loads(a.text) for n in str(e.get("name_value", "")).split("\n")], domain)
+    except (NetzFehler, ValueError, AttributeError, TypeError):
+        return None
+
+
+def _certspotter(netz: Netz, domain: str) -> set[str] | None:
+    """Zweite Quelle für Certificate Transparency (SSLMate certspotter, ohne Konto nutzbar)."""
+    try:
+        a = netz.hole(f"https://api.certspotter.com/v1/issuances?domain={domain}"
+                      "&include_subdomains=true&expand=dns_names", max_bytes=4 << 20)
+        if a.status != 200:
+            return None
+        return _namen_aus([n for e in json.loads(a.text) for n in e.get("dns_names", [])], domain)
+    except (NetzFehler, ValueError, AttributeError, TypeError):
+        return None
+
+
 def kandidaten(dns: Dns, domain: str, netz: Netz | None) -> set[str]:
     namen = {f"{n}.{domain}" for n in HAEUFIGE}
     aus_zert: set[str] = set()
     if netz is not None:
-        try:
-            a = netz.hole(f"https://crt.sh/?q=%25.{domain}&output=json", max_bytes=4 << 20)
-            for e in json.loads(a.text) if a.status == 200 else []:
-                for n in str(e.get("name_value", "")).lower().split("\n"):
-                    n = n.strip().lstrip("*.").rstrip(".")
-                    if n.endswith("." + domain) and n != domain:
-                        aus_zert.add(n)
-        except (NetzFehler, ValueError, AttributeError):
-            pass
+        # crt.sh zuerst; fällt es aus, certspotter als Ersatz
+        aus_zert = _crt_sh(netz, domain)
+        if aus_zert is None:
+            aus_zert = _certspotter(netz, domain) or set()
     # kürzeste Namen zuerst (eher «echte» Dienste als tief verschachtelte Testnamen)
     return namen | set(sorted(aus_zert, key=lambda n: (n.count("."), n))[:MAX_AUS_ZERTIFIKATEN])
 
