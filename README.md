@@ -48,6 +48,11 @@ Anzeigename passt nicht zur Gratis-Adresse, fast leerer Text. Wichtig, weil solc
 echten Gmail-/Outlook-Konten kommen und **DMARC deshalb besteht**. Erst ab mehreren starken
 Signalen gibt es eine Warnung (wenig Fehlalarme).
 
+Ebenso **Phishing-Muster** von Massen-Kampagnen, die SPF/DKIM für ihre eigene Wegwerf-Domain
+bestehen: Absender-Endung existiert nicht (z. B. «.lop»), Anzeigename = Ihr eigenes Postfach,
+gefälschte Server-Kopfzeilen («Trusted Sender»), Links auf Cloud-Speicher, «Zahlungsmethode
+aktualisieren» (DE/EN/FR/IT). pruefstand erklärt dabei, warum «SPF/DKIM pass» hier nichts beweist.
+
 **Korrekturen zum Kopieren:** pruefstand sagt nicht nur «DMARC fehlt», sondern liefert den
 fertigen Eintrag – passend zum erkannten Anbieter, bei riskanten Änderungen in Phasen
 (DMARC none → quarantine → reject, MTA-STS testing → enforce), mit Platzhaltern `<…>` nur

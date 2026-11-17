@@ -15,6 +15,10 @@ Geprüft wird:
   - Massen-Betrugsmuster: «Re:» ohne vorherige E-Mail, Anrede mit der eigenen Adresse,
     Anzeigename passt nicht zur Freemail-Adresse, fast leerer Text. Einzeln schwach,
     zusammen (ab 3 Signalen) ein deutliches Muster – auch wenn DMARC bestanden ist.
+  - Phishing-Muster (Massen-Phishing über eigene Wegwerf-Domains, SPF/DKIM «pass»):
+    stark = Absender-TLD existiert nicht, Anzeigename = Ihr Postfach, gefälschte Kopfzeilen
+    unter dem From; schwach = Link auf Cloud-Speicher, ungültige Kodierung, Zahlungs-Phrasen,
+    SPF/DKIM nur für eine fremde Domain. Warnung ab 2 starken oder 1 starkem + 2 schwachen.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from urllib.parse import urlsplit
 from pruefstand.modell import Befund, Status
 from pruefstand import marken
 from pruefstand.pruefungen import aehnliche
+from pruefstand.tld_liste import TLDS
 
 MAX_GROESSE = 25 * 1024 * 1024
 
@@ -74,6 +79,24 @@ ROLLEN = {"buchhaltung", "rechnung", "rechnungen", "kontakt", "info", "office", 
           "bewerbungen", "contact", "accounting", "invoice", "invoices", "sales", "hello", "team",
           "kundendienst", "verwaltung", "geschaeftsleitung", "direktion", "postmaster", "webmaster"}
 
+# Phishing-Muster: starke Signale (kommen bei echten E-Mails praktisch nie vor) und schwache.
+PHISHING_STARK = {"TLD-UNGUELTIG", "NAME-IST-EMPFAENGER", "KOPF-UNTER-FROM"}
+# Cloud-Speicher, auf dem Betrüger ihre gefälschte Seite ablegen (seriöse Domain = Filter lassen durch).
+CLOUD_SPEICHER = re.compile(
+    r"(?:^|\.)(?:storage\.googleapis\.com|firebasestorage\.googleapis\.com|storage\.cloud\.google\.com"
+    r"|r2\.dev|blob\.core\.windows\.net|web\.core\.windows\.net|digitaloceanspaces\.com"
+    r"|ipfs\.io|dweb\.link|w3s\.link)$|(?:^|\.)s3[.-][a-z0-9.-]*amazonaws\.com$")
+# Interne Endungen (Scanner, Drucker, Server im Firmennetz: scanner@firma.local) – kein Phishing-Signal.
+INTERNE_TLDS = {"local", "localdomain", "lan", "intern", "internal", "home", "corp", "private", "localhost"}
+GUELTIGE_KODIERUNG = {"7bit", "8bit", "binary", "quoted-printable", "base64"}
+ZAHLUNG_PHRASEN = [
+    "update your payment", "payment method has expired", "payment method expired", "payment failed",
+    "payment was declined", "your payment could not be processed", "avoid service interruption",
+    "update your billing", "zahlungsmethode ist abgelaufen", "zahlung fehlgeschlagen",
+    "zahlungsinformationen aktualisieren", "zahlungsmethode aktualisieren",
+    "mettre à jour votre moyen de paiement", "votre paiement a échoué", "moyen de paiement a expiré",
+    "aggiorna il metodo di pagamento", "pagamento non riuscito", "metodo di pagamento è scaduto"]
+
 
 @dataclass
 class MailErgebnis:
@@ -92,6 +115,9 @@ class MailErgebnis:
         if warnungen == {"MAIL-MASSENBETRUG-MUSTER"}:
             return Status.WARNUNG, ("VERDÄCHTIG: typisches Spam-/Betrugsmuster. Nicht antworten, "
                                     "nichts anklicken – als Spam melden und löschen.")
+        if "MAIL-PHISHING-MUSTER" in warnungen:
+            return Status.WARNUNG, ("VERDÄCHTIG: typisches Phishing. Nichts anklicken, keine Daten "
+                                    "eingeben – als Phishing melden und löschen.")
         if schlimmster >= Status.WARNUNG:
             return Status.WARNUNG, ("VERDÄCHTIG. Vor jeder Zahlung, jedem Klick oder jeder Eingabe: "
                                     "Absender anrufen – mit der Nummer, die Sie schon kennen.")
@@ -245,6 +271,88 @@ def _marken_missbrauch(name: str, von_domain: str) -> list[tuple[marken.Marke, s
     return treffer
 
 
+def _org(domain: str) -> str:
+    """Grobe Organisations-Domain (letzte 2 Teile) – reicht für «gleiche Firma?»."""
+    return ".".join(domain.lower().strip(".").split(".")[-2:])
+
+
+def _ohne_unterdomains(domains: set[str]) -> list[str]:
+    """{a.b.x.ch, b.x.ch} → [b.x.ch] – kürzere Anzeige."""
+    return sorted(d for d in domains if not any(d != o and d.endswith("." + o) for o in domains))
+
+
+def _auth_domains(msg: EmailMessage) -> dict[str, str]:
+    """Für welche Domain SPF (smtp.mailfrom) und DKIM (header.d / header.i) bestanden haben."""
+    kopf = msg.get_all("Authentication-Results") or []
+    if not kopf:
+        return {}
+    text = str(kopf[0]).lower()
+    erg = {}
+    m = re.search(r"smtp\.mailfrom=(?:[^\s;@]*@)?([a-z0-9.-]+)", text)
+    if m:
+        erg["spf"] = m.group(1).strip(".")
+    m = re.search(r"header\.d=([a-z0-9.-]+)", text) or re.search(r"header\.i=(?:[^\s;@]*)@([a-z0-9.-]+)", text)
+    if m:
+        erg["dkim"] = m.group(1).strip(".")
+    return erg
+
+
+def _phishing_signale(msg: EmailMessage, name: str, von: str, von_domain: str, ar: dict[str, str],
+                      html: str, hosts: set[str], text: str) -> list[tuple[str, str]]:
+    """Signale für Massen-Phishing mit Wegwerf-Domains (SPF/DKIM bestehen für die Domain des
+    Betrügers, das sichtbare From ist erfunden). (Kürzel, Erklärung)."""
+    signale = []
+    # stark: TLD gibt es nicht → die Absenderadresse kann gar nicht existieren
+    tld = von_domain.rsplit(".", 1)[-1] if "." in von_domain else ""
+    if tld and tld not in TLDS and tld not in INTERNE_TLDS:
+        signale.append(("TLD-UNGUELTIG", f"Die Absenderadresse endet auf «.{tld}» – diese Endung gibt es "
+                        f"nicht. {von} kann keine echte Adresse sein."))
+    # stark: Anzeigename = Ihr eigenes Postfach (z. B. «petermuster <alert-1@…>»)
+    empfaenger = [a.lower() for _, a in getaddresses([str(h) for h in (msg.get_all("Delivered-To", []) or [])
+                                                      + (msg.get_all("To", []) or [])]) if "@" in a]
+    n = name.strip().strip('"').lower()
+    for adr in empfaenger:
+        lokal = adr.split("@", 1)[0]
+        if len(lokal) >= 3 and lokal not in ROLLEN and n in (lokal, adr) and von.lower() != adr:
+            signale.append(("NAME-IST-EMPFAENGER", f"Als Absendername steht Ihr eigenes Postfach «{name}» – "
+                            f"die E-Mail kommt aber von {von}. Trick, damit sie vertraut aussieht."))
+            break
+    # stark: Kopfzeilen, die nur Mailserver setzen, stehen UNTER dem From → vom Absender selbst erfunden
+    namen = [k.lower() for k in msg.keys()]
+    if "from" in namen:
+        unten = [k for k in namen[namen.index("from") + 1:] if k == "received" or k.startswith("x-google-")]
+        if unten:
+            detail = sorted(set(unten))
+            if any("trusted sender" in str(v).lower() for v in msg.get_all("X-Google-Sender-Delegation", []) or []):
+                detail.append("«Trusted Sender» (erfunden – Gmail kennt keine solche Bestätigung)")
+            signale.append(("KOPF-UNTER-FROM", "Die E-Mail enthält gefälschte Server-Kopfzeilen "
+                            f"({', '.join(detail)}). Echte Server schreiben diese immer OBEN dazu."))
+    # schwach: SPF/DKIM bestanden – aber nur für eine fremde Domain
+    dom = _auth_domains(msg)
+    if ar.get("dmarc") != "pass" and von_domain:
+        fremd = _ohne_unterdomains({d for v, d in dom.items() if ar.get(v) == "pass" and _org(d) != _org(von_domain)})
+        if fremd:
+            signale.append(("AUTH-FREMDE-DOMAIN", f"SPF/DKIM bestehen nur für {', '.join(fremd)}, nicht für "
+                            f"den angezeigten Absender {von_domain}. Das beweist nichts über den Absender."))
+    # schwach: Link auf Cloud-Speicher
+    cloud = sorted(h for h in hosts if CLOUD_SPEICHER.search(h))
+    if cloud:
+        signale.append(("LINK-CLOUD-SPEICHER", f"Links führen auf einen Cloud-Speicher ({', '.join(cloud)}) – "
+                        "dort legen Betrüger gerne gefälschte Seiten ab, weil die Domain seriös wirkt."))
+    # schwach: ungültige Content-Transfer-Encoding
+    falsch = sorted({str(t.get("Content-Transfer-Encoding", "")).strip().lower() for t in msg.walk()}
+                    - GUELTIGE_KODIERUNG - {""})
+    if falsch:
+        signale.append(("KODIERUNG-UNGUELTIG", f"Die E-Mail ist absichtlich fehlerhaft aufgebaut "
+                        f"(Kodierung «{falsch[0][:20]}» gibt es nicht) – Trick gegen Spamfilter."))
+    # schwach: Zahlungs-Phrasen («Zahlungsmethode abgelaufen» …)
+    zahlung = [p for p in ZAHLUNG_PHRASEN if p in text]
+    if zahlung:
+        signale.append(("ZAHLUNG-AKTUALISIEREN", f"Sie sollen Ihre Zahlungsdaten aktualisieren "
+                        f"(«{zahlung[0]}») – klassischer Köder für Kreditkarten-Diebstahl."))
+    return signale
+
+
 def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = None,
                 netz=None, jetzt: datetime | None = None) -> MailErgebnis:
     if len(roh) > MAX_GROESSE:
@@ -285,6 +393,13 @@ def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = 
         else:
             schlecht = [v for v, r in (("SPF", spf_), ("DKIM", dkim_)) if r in ("fail", "softfail", "none", "neutral")]
             status = Status.WARNUNG if schlecht and dkim_ != "pass" and spf_ != "pass" else Status.HINWEIS
+            dom = _auth_domains(msg)
+            fremd = _ohne_unterdomains({d for v, d in dom.items() if ar.get(v) == "pass" and von_domain
+                                        and _org(d) != _org(von_domain)})
+            if fremd:
+                detail += (f"\nAchtung: «pass» gilt nur für {', '.join(fremd)} – nicht für {von_domain}. "
+                           "Jeder kann für seine eigene Domain SPF/DKIM einrichten; es zählt nur, ob sie "
+                           "zum angezeigten Absender passt (das prüft DMARC).")
             b(Befund("MAIL-AUTH-UNKLAR", "Echtheit", status,
                      f"Die Echtheit des Absenders {von_domain} ist nicht bestätigt (kein DMARC-Ergebnis).",
                      detail, "Die Absenderdomain schützt sich nicht mit DMARC – der Absender kann "
@@ -454,6 +569,24 @@ def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = 
         b(Befund("MAIL-DRUCK", "Inhalt", Status.HINWEIS, "Die E-Mail baut Zeitdruck oder Geheimhaltung auf.",
                  "Wörter: " + ", ".join(druck),
                  "Druck und «nicht weitersagen» sind typische Betrugsmerkmale."))
+
+    # 6b. Phishing-Muster (Wegwerf-Domain des Betrügers: SPF/DKIM «pass», From erfunden)
+    p_signale = _phishing_signale(msg, name, von, von_domain, ar, html, hosts, text)
+    p_stark = sum(k in PHISHING_STARK for k, _ in p_signale)
+    p_schwach = len(p_signale) - p_stark
+    if p_stark >= 2 or (p_stark >= 1 and p_schwach >= 2):
+        b(Befund("MAIL-PHISHING-MUSTER", "Betrugsmuster", Status.WARNUNG,
+                 f"Typisches Phishing-Muster: {len(p_signale)} Signale gleichzeitig.",
+                 "\n".join(f"– {e}" for _, e in p_signale),
+                 "Nichts anklicken, keine Zahlungs- oder Anmeldedaten eingeben, auch nicht «Abmelden» "
+                 "klicken (bestätigt nur, dass Ihre Adresse aktiv ist). Als Phishing melden und löschen.",
+                 daten={"signale": [k for k, _ in p_signale]}))
+    else:                       # kein Gesamtmuster: starke Signale einzeln zeigen
+        for kuerzel, erklaerung in p_signale:
+            if kuerzel == "TLD-UNGUELTIG":
+                b(Befund(f"MAIL-{kuerzel}", "Absender", Status.WARNUNG, erklaerung))
+            elif kuerzel in PHISHING_STARK:
+                b(Befund(f"MAIL-{kuerzel}", "Betrugsmuster", Status.HINWEIS, erklaerung))
 
     # 7. optional: Alter der Absenderdomain (RDAP)
     if netz is not None and von_domain and von_domain not in eigene:

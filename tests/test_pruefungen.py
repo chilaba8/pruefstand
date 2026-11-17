@@ -1264,3 +1264,89 @@ def test_korrektur_null_mx_fuer_domain_ohne_mail():
     werte = {(s.typ, s.wert) for k in korrektur.erzeuge(erg) for s in k.schritte}
     assert ("MX", "0 .") in werte and ("TXT", "v=spf1 -all") in werte and ("TXT", "v=DMARC1; p=reject") in werte
     assert not any("p=none" in w or "~all" in w for _, w in werte)      # keine Phasen-Einführung
+
+
+# --- Phishing-Muster (echter Fall 16.11.2026, anonymisiert) ---------------------------
+
+from pathlib import Path as _Path  # noqa: E402
+
+_DATEN = _Path(__file__).parent / "daten"
+
+
+def test_mail_phishing_cloud_echter_fall():
+    """«Storage 100% Used»: SPF/DKIM pass (Domain des Betrügers), From mit TLD .lop,
+    Anzeigename = Postfach des Empfängers, gefälschte X-Google-Kopfzeilen. Version 1.5.0 sagte «OK»."""
+    erg = mailpruefung.pruefe_mail((_DATEN / "phishing_cloud_2026-11-16_anonym.eml").read_bytes(), "t.eml")
+    muster = next(b for b in erg.befunde if b.id == "MAIL-PHISHING-MUSTER")
+    assert {"TLD-UNGUELTIG", "NAME-IST-EMPFAENGER", "KOPF-UNTER-FROM", "AUTH-FREMDE-DOMAIN",
+            "LINK-CLOUD-SPEICHER", "KODIERUNG-UNGUELTIG", "ZAHLUNG-AKTUALISIEREN"} == set(muster.daten["signale"])
+    assert erg.urteil[0] == Status.WARNUNG and "Phishing" in erg.urteil[1]
+    unklar = next(b for b in erg.befunde if b.id == "MAIL-AUTH-UNKLAR")
+    assert "sb024.rhythmsahabat.my.id" in unklar.detail and "nicht für puooh.lop" in unklar.detail
+
+
+def test_mail_ungueltige_tld_allein_ist_warnung():
+    roh = _mail(von="Support <info@firma.lop>", auth="spf=none dkim=none")
+    ids_, urteil = _mids(roh)
+    assert "MAIL-TLD-UNGUELTIG" in ids_ and "MAIL-PHISHING-MUSTER" not in ids_ and urteil == Status.WARNUNG
+
+
+@pytest.mark.parametrize("von", ["Peter <peter@muster-ag.ch>", "X <a@b.swiss>", "Y <a@b.xn--p1ai>",
+                                 "Z <a@shop.icu>", "Scanner <scanner@firma.local>", "NAS <nas@srv.lan>"])
+def test_mail_gueltige_tld_kein_signal(von):
+    assert "MAIL-TLD-UNGUELTIG" not in _mids(_mail(von=von))[0]
+
+
+def test_mail_anzeigename_ist_empfaenger():
+    m = _Mail()
+    m["Authentication-Results"] = "mx.empfaenger.ch; spf=pass smtp.mailfrom=boese-firma.ch; dkim=none"
+    m["From"] = "petermuster <alert-1@boese-firma.ch>"
+    m["To"] = "petermuster@beispiel.ch"
+    m["Subject"] = "Konto"
+    m.set_content("Bitte bestätigen.")
+    ids_, urteil = _mids(bytes(m))
+    assert "MAIL-NAME-IST-EMPFAENGER" in ids_ and urteil == Status.OK     # 1 starkes Signal allein: Hinweis
+
+
+def test_mail_eigene_nachricht_an_sich_selbst_kein_signal():
+    m = _Mail()
+    m["From"] = "petermuster <petermuster@beispiel.ch>"
+    m["To"] = "petermuster@beispiel.ch"
+    m["Subject"] = "Notiz"
+    m.set_content("Nicht vergessen.")
+    assert "MAIL-NAME-IST-EMPFAENGER" not in _mids(bytes(m))[0]
+
+
+def test_mail_kopfzeilen_unter_from():
+    m = _Mail()
+    m["Authentication-Results"] = "mx.empfaenger.ch; spf=pass dkim=pass dmarc=pass header.from=muster-ag.ch"
+    m["From"] = "Peter <peter@muster-ag.ch>"
+    m["Received"] = "from x by mx.google.com"
+    m["X-Google-Sender-Delegation"] = "peter Trusted Sender"
+    m["Subject"] = "Hallo"
+    m.set_content("Hallo")
+    assert "MAIL-KOPF-UNTER-FROM" in _mids(bytes(m))[0]
+
+
+def test_mail_outlook_auth_results_unter_from_ist_normal():
+    """Echter Fall Kanton ZH: Outlook schreibt «authentication-results» unter das From – kein Signal."""
+    m = _Mail()
+    m["Authentication-Results"] = "mx.google.com; spf=pass dkim=pass dmarc=pass header.from=vd.zh.ch"
+    m["From"] = "<alk@vd.zh.ch>"
+    m["authentication-results"] = "mx.microsoft.com 1; dkim=none (message not signed)"
+    m["Subject"] = "Wichtige Information"
+    m.set_content("Guten Tag")
+    ids_, urteil = _mids(bytes(m))
+    assert "MAIL-KOPF-UNTER-FROM" not in ids_ and urteil == Status.OK
+
+
+def test_mail_cloud_link_allein_keine_warnung():
+    """Schwaches Signal: ein seriöser Absender mit PDF auf S3 bleibt OK."""
+    html = '<a href="https://firma.s3.eu-central-1.amazonaws.com/preisliste.pdf">Preisliste</a>'
+    ids_, urteil = _mids(_mail(html=html))
+    assert "MAIL-PHISHING-MUSTER" not in ids_ and urteil == Status.OK
+
+
+def test_mail_zahlungsphrase_allein_keine_warnung():
+    ids_, urteil = _mids(_mail(text="Your payment failed. Please update your payment method in your account."))
+    assert "MAIL-PHISHING-MUSTER" not in ids_ and urteil == Status.OK
