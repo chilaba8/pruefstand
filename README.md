@@ -179,6 +179,13 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[test]'
 .venv/bin/python beispiel/erzeuge_muster.py   # Beispielbericht neu erzeugen
 ```
 
+## Über
+
+Entwickelt von Juan Amorós García – [Limmattal IT & Security](https://limmattal-it.ch).
+Fragen, Fehlalarme und Ideen: als Issue oder an kontakt@limmattal-it.ch.
+Sicherheitslücken bitte vertraulich melden, siehe [SECURITY.md](SECURITY.md).
+Änderungen: [CHANGELOG.md](CHANGELOG.md) · Mitmachen: [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## Lizenz
 
-MIT
+MIT – ohne Gewähr. pruefstand ersetzt keine Sicherheitsprüfung durch eine Fachperson.
