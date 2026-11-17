@@ -2,7 +2,7 @@
 
 Alle wichtigen Änderungen an pruefstand. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
-## Unveröffentlicht
+## 1.6.2 – 2026-11-17
 
 - SHODAN-KEV (aktiv ausgenutzte Sicherheitslücke laut CISA KEV) ist jetzt «Kritisch» statt
   «Warnung»: Für diese Lücken gibt es nachweislich Angriffe.
