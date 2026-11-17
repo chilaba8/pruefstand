@@ -2,7 +2,7 @@
 
 Alle wichtigen Änderungen an pruefstand. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
-## Unveröffentlicht
+## 1.6.4 – 2026-11-17
 
 - HTML-Berichte (Domain, E-Mail, Übersicht der Liste) haben eine strenge Content-Security-Policy:
   nichts nachladen, kein JavaScript. Getestet mit Chromium: Ohne CSP lud der PDF-Export
