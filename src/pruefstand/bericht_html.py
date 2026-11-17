@@ -32,6 +32,11 @@ SYMBOL = {Status.OK: "✔", Status.HINWEIS: "●", Status.WARNUNG: "▲", Status
 BETRUGSRISIKO = {"AEHNLICH-MIT-MAIL", "AEHNLICH-NEU-REGISTRIERT", "DMARC-FEHLT", "DMARC-P-NONE", "DMARC-UNGUELTIG",
                  "DMARC-MEHRFACH", "SPF-ALL-OFFEN", "SPF-FEHLT"}
 
+# Gespeicherte Berichte (HTML/PDF) laden nichts nach und führen nichts aus – auch dann nicht,
+# wenn eines Tages Fremddaten unescaped durchrutschen. (frame-ancestors wirkt nicht im <meta>.)
+CSP_META = ('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+            'style-src \'unsafe-inline\'; img-src data:; base-uri \'none\'; form-action \'none\'">')
+
 CSS = """
 :root { --ok:#1b7f3b; --hinweis:#1f6fb2; --warnung:#b26a00; --kritisch:#b3261e; --info:#666;
         --text:#1d1d1f; --leise:#5f6368; --linie:#dadce0; --flaeche:#f6f7f9; }
@@ -147,6 +152,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 
     h = [f"""<!doctype html>
 <html lang="{erg.sprache}"><head><meta charset="utf-8">
+{CSP_META}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sicherheitsbericht {escape(erg.domain)}</title>
 <style>{CSS}</style></head><body><main>
@@ -244,7 +250,8 @@ def finde_browser() -> str | None:
 
 
 def als_pdf(html: str, ziel: Path) -> None:
-    """PDF mit Chromium im Headless-Modus (ohne Netz, ohne Profil)."""
+    """PDF mit Chromium im Headless-Modus (eigenes, leeres Profil). Chromium hätte Netz und
+    JavaScript – die CSP im HTML (CSP_META) verhindert Nachladen und Ausführen."""
     browser = finde_browser()
     if not browser:
         raise RuntimeError("Kein Chromium gefunden. HTML erzeugen und im Browser «Als PDF drucken».")
@@ -264,6 +271,7 @@ def mail_html(erg) -> str:
                      if b.status >= Status.HINWEIS or b.id == "MAIL-DMARC-PASS")
     return f"""<!doctype html>
 <html lang="de-CH"><head><meta charset="utf-8">
+{CSP_META}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>E-Mail-Prüfung</title><style>{CSS}</style></head><body><main>
 <h1>Ist diese E-Mail echt?</h1>

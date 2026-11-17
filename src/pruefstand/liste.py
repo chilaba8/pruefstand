@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pruefstand import __version__
 from pruefstand.absender import Absender
-from pruefstand.bericht_html import CSS, FARBE, SYMBOL, TEXT
+from pruefstand.bericht_html import CSP_META, CSS, FARBE, SYMBOL, TEXT
 from pruefstand.modell import Status
 from pruefstand.pruefung import Ergebnis
 from pruefstand.sprache import fuer
@@ -125,6 +125,7 @@ def uebersicht_html(zeilen: list[Zeile], mit_pdf: bool, absender: Absender, spra
     von = f"Erstellt von {escape(absender.name)} mit" if absender.name else "Erstellt mit"
     return fuer(f"""<!doctype html>
 <html lang="{sprache}"><head><meta charset="utf-8">
+{CSP_META}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Übersicht E-Mail-Sicherheit</title>
 <style>{CSS}
