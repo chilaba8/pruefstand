@@ -26,6 +26,7 @@ from dataclasses import dataclass
 import json
 from datetime import datetime, timedelta, timezone
 
+from pruefstand.sprache import zahl
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz, NetzFehler
@@ -303,14 +304,15 @@ def _eigene_befunde(dns: Dns, eigene: dict[str, str]) -> tuple[list[Befund], lis
     if weg:
         befunde.append(Befund(
             "AEHNLICH-EIGENE-ABGELAUFEN", "Ähnliche Domains", Status.WARNUNG,
-            f"{len(weg)} Ihrer eigenen Domain(s) existiert/existieren nicht mehr – jemand anderes "
-            "könnte sie registrieren.", "\n".join(zeile(i) for i in weg),
+            (f"{len(weg)} Ihrer eigenen Domains gibt es nicht mehr" if len(weg) > 1 else
+             "Eine Ihrer eigenen Domains gibt es nicht mehr") + " – jemand anderes könnte sie registrieren.", "\n".join(zeile(i) for i in weg),
             "Beim Registrar prüfen, ob die Domain abgelaufen ist, und sie wieder registrieren. "
             "Sonst kann ein Betrüger genau diese Variante für gefälschte E-Mails nutzen.", daten))
     if offen:
         befunde.append(Befund(
             "AEHNLICH-EIGENE-UNGESCHUETZT", "Ähnliche Domains", Status.WARNUNG,
-            f"{len(offen)} Ihrer eigenen ähnlichen Domain(s) ist/sind nicht gegen Fälschung geschützt.",
+            (f"{len(offen)} Ihrer eigenen ähnlichen Domains sind" if len(offen) > 1 else
+             "Eine Ihrer eigenen ähnlichen Domains ist") + " nicht gegen Fälschung geschützt.",
             "\n".join(zeile(i) for i in offen),
             "Auch Domains, die Sie nur zum Schutz besitzen, absichern – sonst können Betrüger mit "
             "ihnen E-Mails in Ihrem Namen verschicken. Ohne E-Mail: SPF «v=spf1 -all», DMARC "
@@ -319,7 +321,8 @@ def _eigene_befunde(dns: Dns, eigene: dict[str, str]) -> tuple[list[Befund], lis
     if gut:
         befunde.append(Befund(
             "AEHNLICH-EIGENE", "Ähnliche Domains", Status.OK,
-            f"{len(gut)} eigene ähnliche Domain(s) bestätigt und gegen Fälschung geschützt.",
+            f"{zahl(len(gut), 'eigene ähnliche Domain', 'eigene ähnliche Domains')} bestätigt und gegen "
+            "Fälschung geschützt.",
             "\n".join(zeile(i) for i in gut), daten=daten))
     return befunde, infos
 
@@ -345,8 +348,8 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, jetzt: datetime | No
     if neu_mit_mail:
         befunde.append(Befund(
             "AEHNLICH-NEU-REGISTRIERT", "Ähnliche Domains", Status.KRITISCH,
-            f"{len(neu_mit_mail)} ähnliche Domain(s) mit E-Mail wurden in den letzten {NEU_TAGE} Tagen "
-            "registriert – typisches Zeichen für einen vorbereiteten Betrug.",
+            f"{zahl(len(neu_mit_mail), 'ähnliche Domain mit E-Mail wurde', 'ähnliche Domains mit E-Mail wurden')} "
+            f"in den letzten {NEU_TAGE} Tagen registriert – ein typisches Zeichen für einen vorbereiteten Betrug.",
             "\n".join(t.zeile() for t in neu_mit_mail),
             "Sofort: Buchhaltung und wichtige Kunden warnen (keine Kontowechsel per E-Mail), "
             "Fall dem BACS melden (www.ncsc.admin.ch). Prüfen, wem die Domain gehört.",
@@ -355,7 +358,7 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, jetzt: datetime | No
     if mit_mail:
         befunde.append(Befund(
             "AEHNLICH-MIT-MAIL", "Ähnliche Domains", Status.WARNUNG,
-            f"{len(mit_mail)} ähnliche Domain(s) können E-Mails senden/empfangen.",
+            f"{zahl(len(mit_mail), 'ähnliche Domain kann', 'ähnliche Domains können')} E-Mails senden und empfangen.",
             "\n".join(t.zeile() for t in mit_mail),
             "Prüfen, ob diese Domains Ihnen oder einer bekannten Firma gehören. Wenn ja: als eigene "
             "Domain markieren (pruefstand … --eigene-domain DOMAIN), dann wird sie künftig auf Schutz "
@@ -366,7 +369,7 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, jetzt: datetime | No
     if ohne_mail:
         befunde.append(Befund(
             "AEHNLICH-OHNE-MAIL", "Ähnliche Domains", Status.HINWEIS,
-            f"{len(ohne_mail)} ähnliche Domain(s) registriert, derzeit ohne E-Mail.",
+            f"{zahl(len(ohne_mail), 'ähnliche Domain ist', 'ähnliche Domains sind')} registriert, derzeit ohne E-Mail.",
             "\n".join(t.zeile() for t in ohne_mail),
             "Beobachten: E-Mail kann jederzeit eingerichtet werden. Bei erneuter Prüfung "
             "zeigt pruefstand, ob sich etwas geändert hat.", daten,

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree as ET
 
+from pruefstand.sprache import zahl
 from pruefstand.modell import Befund, Status
 
 MAX_ENTPACKT = 20 * 1024 * 1024
@@ -193,8 +194,9 @@ def bewerte(aus: Auswertung) -> list[Befund]:
     gesamt, ok = aus.gesamt, aus.bestanden
     befunde.append(Befund(
         "RUA-UEBERSICHT", "DMARC-Berichte", Status.INFO,
-        f"{gesamt} E-Mails von {len(aus.quellen)} Servern; {ok} ({ok / gesamt:.0%}) bestehen DMARC.",
-        f"Domain(s): {', '.join(sorted(aus.domains))} · Richtlinie: {', '.join(sorted(aus.policy))} · "
+        f"{zahl(gesamt, 'E-Mail', 'E-Mails')} von {zahl(len(aus.quellen), 'Server', 'Servern')}; "
+        f"{ok} ({ok / gesamt:.0%}) " + ("besteht" if ok == 1 else "bestehen") + " DMARC.",
+        f"{'Domain' if len(aus.domains) == 1 else 'Domains'}: {', '.join(sorted(aus.domains))} · Richtlinie: {', '.join(sorted(aus.policy))} · "
         f"Zeitraum: {aus.von:%d.%m.%Y} – {aus.bis:%d.%m.%Y}" if aus.von and aus.bis else "",
     ))
     bekannte_fehler = [q for q in aus.quellen.values() if q.bestanden < q.anzahl and q.name]
@@ -202,8 +204,8 @@ def bewerte(aus: Auswertung) -> list[Befund]:
     if bekannte_fehler:
         befunde.append(Befund(
             "RUA-ECHTE-DIENSTE-SCHEITERN", "DMARC-Berichte", Status.WARNUNG,
-            f"{len(bekannte_fehler)} bekannte(r) Versanddienst(e) bestehen DMARC nicht immer – "
-            "das sind wahrscheinlich IHRE eigenen E-Mails.",
+            f"{zahl(len(bekannte_fehler), 'bekannter Versanddienst besteht', 'bekannte Versanddienste bestehen')} "
+            "DMARC nicht immer – das sind wahrscheinlich IHRE eigenen E-Mails.",
             "\n".join(f"{q.name} ({q.ip}, {q.ptr}): {q.anzahl - q.bestanden} von {q.anzahl} gescheitert"
                       for q in sorted(bekannte_fehler, key=lambda x: -x.anzahl)),
             "Bei diesen Diensten DKIM mit Ihrer Domain einrichten (oder sie in den SPF aufnehmen). "
@@ -250,6 +252,6 @@ def bewerte(aus: Auswertung) -> list[Befund]:
         ))
     if aus.fehler:
         befunde.append(Befund("RUA-DATEIFEHLER", "DMARC-Berichte", Status.INFO,
-                              f"{len(aus.fehler)} Datei(en) konnten nicht gelesen werden.",
+                              f"{zahl(len(aus.fehler), 'Datei konnte', 'Dateien konnten')} nicht gelesen werden.",
                               "\n".join(aus.fehler[:10])))
     return befunde

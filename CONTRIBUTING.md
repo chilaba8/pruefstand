@@ -6,7 +6,7 @@ Fehler, Fehlalarme und Verbesserungsvorschläge sind willkommen – gern als Iss
 
 Das hilft am meisten. Bitte die E-Mail **anonymisiert** beilegen (eigene Adressen und Namen
 ersetzen, z. B. durch `max@beispiel.ch`) und angeben, was pruefstand gemeldet hat und was
-richtig gewesen wäre. Jeder echte Fall wird ein Test, damit er nie wieder vorkommt.
+richtig gewesen wäre. Aus jedem echten Fall wird ein Test, damit der Fehler nicht wiederkommt.
 
 ## Code
 

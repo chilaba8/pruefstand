@@ -14,6 +14,11 @@ import re
 
 SPRACHEN = ("de-CH", "de-DE")
 
+
+def zahl(n: int, einzahl: str, mehrzahl: str) -> str:
+    """«1 Domain» / «3 Domains» – statt «Domain(s)», das falsche Verbformen erzwingt."""
+    return f"{n} {einzahl if n == 1 else mehrzahl}"
+
 # Wörter, die in Deutschland mit ß geschrieben werden (in pruefstand-Texten vorkommend)
 SS_ZU_SZ = {
     "ausserdem": "außerdem", "Ausserdem": "Außerdem",

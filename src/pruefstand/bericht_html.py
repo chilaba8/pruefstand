@@ -157,7 +157,7 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 {escape(', '.join(erg.anbieter) or 'unbekannt')} · DNS-Anbieter:
 {escape(', '.join(erg.dns_anbieter) or 'unbekannt')}</div>
 
-<h2>Für die Geschäftsleitung <span class="note note-{erg.note}" title="{erg.punkte}/100 Punkte">Note {erg.note}</span></h2>
+<h2>Für die Geschäftsleitung <span class="note note-{erg.note}" title="{erg.punkte}/100 Punkte">Note {erg.note}</span> <span style="font-size:.8rem;font-weight:normal;color:#6b7280">(A = sehr gut … F = ungenügend)</span></h2>
 <div class="urteil {FARBE[status]}">
   <div class="frage">Sind Sie gegen gefälschte E-Mails in Ihrem Namen geschützt – z. B. Rechnungen
   mit einer falschen Bankverbindung?</div>
@@ -183,8 +183,8 @@ def erzeuge(erg: Ergebnis, firma: str | None = None, absender: Absender | None =
 
     zeilen = vergleich_ch.vergleiche(erg)
     if zeilen:
-        h.append("<h2>Im Vergleich zur Schweiz</h2><table class='vergleich'><thead><tr><th>Schutz</th>"
-                 "<th>Ihre Domain</th><th>So viele .ch-Domains haben es</th></tr></thead><tbody>")
+        h.append("<h2>Im Vergleich mit allen .ch-Domains</h2><table class='vergleich'><thead><tr><th>Schutz</th>"
+                 "<th>Ihre Domain</th><th>Anteil der .ch-Domains</th></tr></thead><tbody>")
         for z in zeilen:
             sie = '<span class="ok">✔ ja</span>' if z.sie else '<span class="warnung">✖ nein</span>'
             h.append(f"<tr><td>{escape(z.kennzahl.name)}</td><td>{sie}</td>"

@@ -85,7 +85,7 @@ def pruefe(dns: Dns, domain: str, extra_selektoren: list[str] | None = None) -> 
     if not gefunden:
         return [Befund(
             "DKIM-NICHT-GEFUNDEN", "DKIM", Status.WARNUNG,
-            "Kein DKIM-Schlüssel unter gängigen Namen gefunden.",
+            "Kein DKIM-Schlüssel unter den üblichen Namen gefunden.",
             f"Geprüft: {len(selektoren)} Selektoren. DKIM kann trotzdem eingerichtet sein "
             "(unbekannter Selektor).",
             "Eine E-Mail an sich selbst senden und im Header «DKIM-Signature: d=… s=…» "

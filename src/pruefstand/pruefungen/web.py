@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
+from pruefstand.sprache import zahl
 from pruefstand.dnsabfrage import Dns
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz, NetzFehler
@@ -136,7 +137,7 @@ def pruefe(dns: Dns, domain: str, netz: Netz, jetzt: datetime | None = None) -> 
             schwach.append(f"{name}: ohne {', '.join(fehlt)}")
     if schwach:
         befunde.append(Befund("WEB-COOKIES-UNSICHER", "Web", Status.HINWEIS,
-                              f"{len(schwach)} Cookie(s) ohne empfohlene Schutz-Attribute.",
+                              f"{zahl(len(schwach), 'Cookie', 'Cookies')} ohne empfohlene Schutzattribute.",
                               "\n".join(schwach[:10]),
                               "Cookies mit Secure, HttpOnly und SameSite setzen (CMS/Webserver). "
                               "Besonders wichtig für Anmelde-Cookies."))

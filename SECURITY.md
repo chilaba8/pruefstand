@@ -13,7 +13,7 @@ Beispiel (z. B. eine präparierte `.eml`-Datei oder ein DMARC-Bericht).
 Sie erhalten innerhalb von 7 Tagen eine Antwort. Nach der Behebung werden Sie – wenn Sie
 möchten – im CHANGELOG genannt.
 
-## Was ist im Fokus?
+## Was uns besonders interessiert
 
 pruefstand verarbeitet **fremde, nicht vertrauenswürdige Daten**: E-Mails (`.eml`),
 DMARC-Berichte (XML, ZIP, GZ) und Antworten von DNS- und Webservern. Besonders interessant:

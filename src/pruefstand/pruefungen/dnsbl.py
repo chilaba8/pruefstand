@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import ipaddress
 
+from pruefstand.sprache import zahl
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.pruefungen import spf
@@ -95,7 +96,7 @@ def pruefe(dns: Dns, domain: str) -> list[Befund]:
     elif len(nicht_pruefbar) < len(LISTEN):
         befunde.append(Befund(
             "DNSBL-OK", "Sperrlisten", Status.OK,
-            f"Keine Spam-Sperrliste gefunden ({len(ips)} IP-Adresse(n) geprüft).", daten=daten,
+            f"Auf keiner Spam-Sperrliste ({zahl(len(ips), 'IP-Adresse', 'IP-Adressen')} geprüft).", daten=daten,
         ))
     if nicht_pruefbar:
         befunde.append(Befund(

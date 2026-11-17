@@ -2,6 +2,12 @@
 
 Alle wichtigen Änderungen an pruefstand. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## 1.6.1 – 2026-11-17
+
+- Sprache überarbeitet: richtige Einzahl/Mehrzahl statt «Domain(s)» («1 ähnliche Domain kann …»),
+  klarere Formulierungen im Bericht, in den Befunden und im README.
+- Bericht: Legende zur Note (A = sehr gut … F = ungenügend), Vergleich «mit allen .ch-Domains».
+
 ## 1.6.0 – 2026-11-17
 
 - **Phishing-Muster in der E-Mail-Prüfung** (`MAIL-PHISHING-MUSTER`): erkennt Massen-Phishing,

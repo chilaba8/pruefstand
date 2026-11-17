@@ -46,10 +46,10 @@ PostFinance, Post, SBB, UBS, TWINT, ESTV), Links, Anhänge, IBAN-Wechsel –
 und **Massen-Betrugsmuster**: «Re:» ohne vorherige E-Mail, Anrede mit Ihrer E-Mail-Adresse,
 Anzeigename passt nicht zur Gratis-Adresse, fast leerer Text. Wichtig, weil solche E-Mails von
 echten Gmail-/Outlook-Konten kommen und **DMARC deshalb besteht**. Erst ab mehreren starken
-Signalen gibt es eine Warnung (wenig Fehlalarme).
+Signalen gibt es eine Warnung – so bleiben Fehlalarme selten.
 
-Ebenso **Phishing-Muster** von Massen-Kampagnen, die SPF/DKIM für ihre eigene Wegwerf-Domain
-bestehen: Absender-Endung existiert nicht (z. B. «.lop»), Anzeigename = Ihr eigenes Postfach,
+Ausserdem erkennt pruefstand **Phishing-Muster** von Massenkampagnen, die SPF/DKIM für ihre eigene
+Wegwerf-Domain bestehen: Die Endung der Absenderadresse gibt es nicht (z. B. «.lop»), Anzeigename = Ihr eigenes Postfach,
 gefälschte Server-Kopfzeilen («Trusted Sender»), Links auf Cloud-Speicher, «Zahlungsmethode
 aktualisieren» (DE/EN/FR/IT). pruefstand erklärt dabei, warum «SPF/DKIM pass» hier nichts beweist.
 
@@ -66,7 +66,7 @@ pruefstand beispiel.ch --korrekturen-datei fix.md          # als Datei für den 
 Der HTML/PDF-Bericht enthält die Korrekturen automatisch.
 
 Dazu: **Gesamtnote A–F**, **Vergleich mit allen .ch-Domains** (Icewolf Q3 2025), **Verlauf**
-(was ist seit der letzten Prüfung neu kaputt oder behoben?) und **Normbezug** je Befund
+(was ist seit der letzten Prüfung neu dazugekommen, was wurde behoben?) und **Normbezug** je Befund
 (nDSG Art. 8, IKT-Minimalstandard, ISO/IEC 27001:2022 – zur Orientierung, keine Rechtsberatung).
 Die Befund-IDs sind identisch mit [befundkatalog](https://github.com/chilaba8/befundkatalog).
 
@@ -76,7 +76,7 @@ Die Befund-IDs sind identisch mit [befundkatalog](https://github.com/chilaba8/be
 pipx install git+https://github.com/chilaba8/pruefstand
 ```
 
-Für PDF-Berichte wird Chromium benötigt (sonst HTML im Browser «Als PDF drucken»).
+Für PDF-Berichte wird Chromium benötigt. Ohne Chromium: den HTML-Bericht im Browser öffnen und «Als PDF drucken».
 
 ## Verwendung
 
@@ -97,8 +97,8 @@ pruefstand --liste kunden.txt --ordner berichte --mit-pdf \
            --absender "Ihre IT GmbH" --logo logo.png
 ```
 
-Ergebnis: ein Bericht pro Kunde, `uebersicht.html` (dringendste zuerst) und
-`uebersicht.csv` (öffnet direkt in Excel).
+Ergebnis: ein Bericht pro Kunde, `uebersicht.html` (die dringendsten zuerst) und
+`uebersicht.csv` (lässt sich direkt in Excel öffnen).
 
 Weitere Optionen:
 
@@ -110,7 +110,7 @@ Weitere Optionen:
 | `--online-quellen` | zusätzlich RDAP (Registrierdatum), crt.sh bzw. certspotter (Zertifikate, Subdomains) und **offene Dienste**: Shodan InternetDB + CISA-Liste aktiv ausgenutzter Lücken (KEV) für die eigenen IPs – langsam, sendet Domainnamen/IPs an externe Dienste |
 | `--html -` | HTML-Bericht auf die Standardausgabe statt in eine Datei (z. B. für Apps, Handy) |
 | `--dns IP` | eigenen DNS-Server verwenden – muss **rekursiv** sein (ein autoritativer Server wird abgelehnt) |
-| `--ohne-verlauf` / `--verlauf ORDNER` | Vergleich mit früheren Prüfungen aus / anderer Ordner |
+| `--ohne-verlauf` / `--verlauf ORDNER` | Vergleich mit früheren Prüfungen ausschalten / anderen Ordner verwenden |
 | `--dkim-selektor NAME` | zusätzlichen DKIM-Selektor prüfen |
 | `--eigene-domain DOMAIN` | ähnliche Domain, die laut Kunde **ihm gehört**: wird im Verlauf gespeichert (mit Datum), nicht mehr als verdächtig gemeldet, aber weiter geprüft (SPF/DMARC vorhanden? noch registriert?) |
 | `--nicht-eigene DOMAIN` | diese Markierung wieder entfernen |
@@ -137,7 +137,7 @@ export PRUEFSTAND_TELEGRAM_TOKEN=…  PRUEFSTAND_TELEGRAM_CHAT=…     # oder PR
 pruefstand --liste kunden.txt --ordner berichte --benachrichtigen telegram
 ```
 
-Gemeldet wird nur, was sich geändert hat (neu kaputt, behoben, neue ähnliche Domain).
+Gemeldet wird nur, was sich geändert hat (neues Problem, behoben, neue ähnliche Domain).
 Zugangsdaten nur über Umgebungsvariablen. Beispiel für einen systemd-Timer:
 [`beispiel/systemd/`](beispiel/systemd/). Statt Telegram/E-Mail geht auch ein eigener Befehl:
 `--bei-aenderung "befehl"` (Nachricht auf stdin).
@@ -149,18 +149,18 @@ docker build -t pruefstand .
 docker run --rm pruefstand beispiel.ch
 ```
 
-Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler. Bei einem unerwarteten Fehler erscheint eine Zeile statt eines Python-Tracebacks; den vollständigen Traceback zeigt `PRUEFSTAND_DEBUG=1 pruefstand …`. Ohne DNS-Konfiguration (z. B. Android/Termux) nimmt pruefstand `$PREFIX/etc/resolv.conf` oder 1.1.1.1/9.9.9.9.
+Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fehler. Bei einem unerwarteten Fehler erscheint eine Zeile statt eines Python-Tracebacks; den vollständigen Traceback zeigt `PRUEFSTAND_DEBUG=1 pruefstand …`. Ohne DNS-Konfiguration (z. B. Android/Termux) verwendet pruefstand `$PREFIX/etc/resolv.conf` oder 1.1.1.1/9.9.9.9.
 
 ## Datenschutz und Sicherheit
 
-- Domain-Prüfung: öffentliche DNS-Daten und – wie bei jedem Besuch – Startseite,
+- Domain-Prüfung: öffentliche DNS-Daten und – wie bei jedem normalen Webseitenbesuch – Startseite,
   `/.well-known/security.txt`, MTA-STS-Datei und ggf. Startseiten verdächtiger Subdomains.
   Kein Port-Scan, kein Login, keine Angriffe.
 - E-Mail-Prüfung: komplett lokal; kein Link wird geöffnet, kein Anhang ausgeführt.
 - DMARC-Berichte: lokal; nur die Namen der Server-IPs werden per DNS nachgeschlagen.
   Berichte sind fremde Daten: XML wird mit defusedxml gelesen, Archive mit Grössenlimit.
 - Externe Dienste (RDAP, crt.sh, certspotter, Shodan InternetDB, CISA KEV) nur mit `--online-quellen`. Offene Ports kommen aus den Daten von Shodan – pruefstand selbst scannt keine Ports. Sperrlisten per DNS
-  (Spamhaus: frei für geringe, nicht-kommerzielle Nutzung).
+  (Spamhaus: kostenlos nur bei geringer, nicht kommerzieller Nutzung).
 - Verlauf nur auf Ihrem PC (`~/.local/share/pruefstand/verlauf`, nur für Sie lesbar).
 - Oberfläche nur auf 127.0.0.1, mit Schutz gegen fremde Webseiten (Host-Prüfung, Token, CSP).
 - Prüfen Sie fremde Domains nur mit Einverständnis des Inhabers.
@@ -169,7 +169,7 @@ Rückgabewert: `0` alles gut · `1` Warnungen · `2` kritische Befunde · `3` Fe
 
 - **Nie raten.** Kann etwas nicht geprüft werden (DNS-Fehler, unbekannter DKIM-Selektor),
   steht das im Bericht – statt eines falschen «fehlt» oder «alles gut».
-- **Anleitungen nur aus offizieller Doku**, jeweils mit Quelle und Prüfdatum.
+- **Anleitungen nur aus offizieller Dokumentation**, jeweils mit Quelle und Prüfdatum.
 
 ## Entwicklung
 

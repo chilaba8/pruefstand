@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from pruefstand.sprache import zahl
 from pruefstand import __version__
 from pruefstand.modell import Status
 from pruefstand.pruefung import Ergebnis
@@ -149,7 +150,7 @@ def mail_json(erg) -> str:
 
 def rua_terminal(aus, befunde, console: Console | None = None) -> None:
     c = console or Console()
-    c.print(Panel(Text(f"{aus.dateien} Bericht(e) · {aus.gesamt} E-Mails · "
+    c.print(Panel(Text(f"{zahl(aus.dateien, 'Bericht', 'Berichte')} · {zahl(aus.gesamt, 'E-Mail', 'E-Mails')} · "
                        f"{len(aus.quellen)} Server", style="bold"),
                   title=f"pruefstand {__version__} – DMARC-Berichte", border_style="cyan"))
     t = Table(show_header=True, header_style="bold", expand=True)

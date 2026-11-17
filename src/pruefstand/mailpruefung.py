@@ -315,7 +315,7 @@ def _phishing_signale(msg: EmailMessage, name: str, von: str, von_domain: str, a
         lokal = adr.split("@", 1)[0]
         if len(lokal) >= 3 and lokal not in ROLLEN and n in (lokal, adr) and von.lower() != adr:
             signale.append(("NAME-IST-EMPFAENGER", f"Als Absendername steht Ihr eigenes Postfach «{name}» – "
-                            f"die E-Mail kommt aber von {von}. Trick, damit sie vertraut aussieht."))
+                            f"die E-Mail kommt aber von {von}. Ein Trick, damit sie vertraut wirkt."))
             break
     # stark: Kopfzeilen, die nur Mailserver setzen, stehen UNTER dem From → vom Absender selbst erfunden
     namen = [k.lower() for k in msg.keys()]
@@ -326,7 +326,7 @@ def _phishing_signale(msg: EmailMessage, name: str, von: str, von_domain: str, a
             if any("trusted sender" in str(v).lower() for v in msg.get_all("X-Google-Sender-Delegation", []) or []):
                 detail.append("«Trusted Sender» (erfunden – Gmail kennt keine solche Bestätigung)")
             signale.append(("KOPF-UNTER-FROM", "Die E-Mail enthält gefälschte Server-Kopfzeilen "
-                            f"({', '.join(detail)}). Echte Server schreiben diese immer OBEN dazu."))
+                            f"({', '.join(detail)}). Echte Mailserver fügen diese immer OBEN ein."))
     # schwach: SPF/DKIM bestanden – aber nur für eine fremde Domain
     dom = _auth_domains(msg)
     if ar.get("dmarc") != "pass" and von_domain:
@@ -344,12 +344,12 @@ def _phishing_signale(msg: EmailMessage, name: str, von: str, von_domain: str, a
                     - GUELTIGE_KODIERUNG - {""})
     if falsch:
         signale.append(("KODIERUNG-UNGUELTIG", f"Die E-Mail ist absichtlich fehlerhaft aufgebaut "
-                        f"(Kodierung «{falsch[0][:20]}» gibt es nicht) – Trick gegen Spamfilter."))
+                        f"(Kodierung «{falsch[0][:20]}» gibt es nicht) – ein Trick gegen Spamfilter."))
     # schwach: Zahlungs-Phrasen («Zahlungsmethode abgelaufen» …)
     zahlung = [p for p in ZAHLUNG_PHRASEN if p in text]
     if zahlung:
         signale.append(("ZAHLUNG-AKTUALISIEREN", f"Sie sollen Ihre Zahlungsdaten aktualisieren "
-                        f"(«{zahlung[0]}») – klassischer Köder für Kreditkarten-Diebstahl."))
+                        f"(«{zahlung[0]}») – ein klassischer Köder für Kreditkartenbetrug."))
     return signale
 
 
@@ -578,8 +578,8 @@ def pruefe_mail(roh: bytes, datei: str = "", eigene_domains: list[str] | None = 
         b(Befund("MAIL-PHISHING-MUSTER", "Betrugsmuster", Status.WARNUNG,
                  f"Typisches Phishing-Muster: {len(p_signale)} Signale gleichzeitig.",
                  "\n".join(f"– {e}" for _, e in p_signale),
-                 "Nichts anklicken, keine Zahlungs- oder Anmeldedaten eingeben, auch nicht «Abmelden» "
-                 "klicken (bestätigt nur, dass Ihre Adresse aktiv ist). Als Phishing melden und löschen.",
+                 "Nichts anklicken, keine Zahlungs- oder Anmeldedaten eingeben, auch nicht auf «Abmelden» "
+                 "klicken (das bestätigt nur, dass Ihre Adresse aktiv ist). Als Phishing melden und löschen.",
                  daten={"signale": [k for k, _ in p_signale]}))
     else:                       # kein Gesamtmuster: starke Signale einzeln zeigen
         for kuerzel, erklaerung in p_signale:

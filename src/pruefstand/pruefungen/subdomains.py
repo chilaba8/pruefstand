@@ -19,6 +19,7 @@ import json
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 
+from pruefstand.sprache import zahl
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz, NetzFehler
@@ -142,8 +143,8 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, online_netz: Netz | 
     if kritisch:
         befunde.append(Befund(
             "SUB-UEBERNEHMBAR", "Subdomains", Status.KRITISCH,
-            f"{len(kritisch)} Subdomain(s) zeigen auf einen gekündigten Dienst – ein Angreifer "
-            "könnte sie übernehmen.",
+            f"{zahl(len(kritisch), 'Subdomain zeigt', 'Subdomains zeigen')} auf einen gekündigten Dienst – "
+            "ein Angreifer könnte sie übernehmen.",
             "\n".join(f"{c['name']} → {c['ziel']} ({c['dienst']}, Ziel existiert nicht)" for c in kritisch),
             "DNS-Eintrag sofort löschen (oder den Dienst wieder einrichten). Sonst kann jemand unter "
             "Ihrer Domain eine Phishing-Seite betreiben.",
@@ -152,7 +153,7 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, online_netz: Netz | 
     if verwaist:
         befunde.append(Befund(
             "SUB-VERWAIST", "Subdomains", Status.WARNUNG,
-            f"{len(verwaist)} Subdomain(s) zeigen auf ein Ziel, das nicht mehr existiert.",
+            f"{zahl(len(verwaist), 'Subdomain zeigt', 'Subdomains zeigen')} auf ein Ziel, das es nicht mehr gibt.",
             "\n".join(f"{c['name']} → {c['ziel']}" for c in verwaist),
             "Nicht mehr benötigte DNS-Einträge löschen.", {"eintraege": verwaist},
         ))
@@ -173,8 +174,8 @@ def pruefe(dns: Dns, domain: str, netz: Netz | None = None, online_netz: Netz | 
     if verdacht:
         befunde.append(Befund(
             "SUB-DIENST-FREI", "Subdomains", Status.WARNUNG,
-            f"{len(verdacht)} Subdomain(s) zeigen die typische Meldung «diese Seite gibt es nicht» "
-            "des Dienstes – möglicherweise übernehmbar.",
+            f"{zahl(len(verdacht), 'Subdomain zeigt', 'Subdomains zeigen')} die typische Meldung «diese "
+            "Seite gibt es nicht» des Dienstes – möglicherweise übernehmbar.",
             "\n".join(f"{c['name']} → {c['ziel']} ({c['dienst']})" for c in verdacht),
             "Manuell prüfen. Wenn der Dienst nicht mehr genutzt wird: DNS-Eintrag löschen.",
             {"eintraege": verdacht},

@@ -27,6 +27,7 @@ import os
 import time
 from pathlib import Path
 
+from pruefstand.sprache import zahl
 from pruefstand.dnsabfrage import Dns, DnsFehler
 from pruefstand.modell import Befund, Status
 from pruefstand.netz import Netz, NetzFehler
@@ -191,11 +192,13 @@ def pruefe(dns: Dns, domain: str, netz: Netz, kev_datei: Path | None = None) -> 
             "Sofort vom Internet trennen und nur über VPN oder ein getrenntes Netz erreichbar machen.")
     if kev_rw:
         neu("SHODAN-KEV-RANSOMWARE", Status.KRITISCH,
-            f"{len(kev_rw)} Sicherheitslücke(n), die von Ransomware-Gruppen ausgenutzt werden (CISA KEV).",
+            f"{zahl(len(kev_rw), 'Sicherheitslücke, die', 'Sicherheitslücken, die')} von Ransomware-Gruppen "
+            "ausgenutzt " + ("wird" if len(kev_rw) == 1 else "werden") + " (CISA KEV).",
             kev_rw, "Sofort aktualisieren (Hersteller-Update). Danach prüfen, ob schon jemand eingedrungen ist.")
     if kev_sonst:
         neu("SHODAN-KEV", Status.WARNUNG,
-            f"{len(kev_sonst)} Sicherheitslücke(n), die nachweislich angegriffen werden (CISA KEV).",
+            f"{zahl(len(kev_sonst), 'Sicherheitslücke, die', 'Sicherheitslücken, die')} nachweislich angegriffen "
+            + ("wird" if len(kev_sonst) == 1 else "werden") + " (CISA KEV).",
             kev_sonst, "Zeitnah aktualisieren (Hersteller-Update) und bestätigen, dass die Version betroffen ist.")
     if gruppen["unsicher"]:
         neu("SHODAN-UNSICHER", Status.WARNUNG,
@@ -204,7 +207,8 @@ def pruefe(dns: Dns, domain: str, netz: Netz, kev_datei: Path | None = None) -> 
     if cve_sonst:
         zusatz = "" if kev is not None else " (KEV-Liste nicht abrufbar – Dringlichkeit unbekannt)"
         neu("SHODAN-CVE", Status.HINWEIS,
-            f"{len(cve_sonst)} bekannte Sicherheitslücke(n) laut Versionsangabe{zusatz}.", cve_sonst,
+            f"{zahl(len(cve_sonst), 'bekannte Sicherheitslücke', 'bekannte Sicherheitslücken')} laut "
+            f"Versionsangabe{zusatz}.", cve_sonst,
             "Software aktuell halten. Mit dem Hersteller/Informatiker prüfen, ob die Version betroffen ist.")
     if not befunde:
         zeilen = [f"{ip} ({ips[ip]}): Ports {', '.join(map(str, d.get('ports', []))) or '–'}"

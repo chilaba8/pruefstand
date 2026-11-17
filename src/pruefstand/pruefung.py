@@ -79,11 +79,11 @@ class Ergebnis:
                                     "geprüft werden. Bitte später erneut prüfen.")
         if self.hat("DMARC-FEHLT") or self.hat("DMARC-P-NONE") or self.hat("DMARC-UNGUELTIG") \
                 or self.hat("DMARC-MEHRFACH"):
-            return Status.KRITISCH, ("NEIN. Jemand kann E-Mails mit Ihrer Absenderadresse verschicken "
-                                     "(z. B. gefälschte Rechnungen) – und viele kommen im Posteingang an.")
+            return Status.KRITISCH, ("NEIN. Betrüger können E-Mails mit Ihrer Absenderadresse verschicken "
+                                     "(z. B. gefälschte Rechnungen) – und viele davon landen im Posteingang.")
         if self.hat("SPF-ALL-OFFEN") or self.hat("SPF-FEHLT") or self.hat("SPF-ZU-VIELE-LOOKUPS"):
             return Status.WARNUNG, ("TEILWEISE. DMARC ist aktiv, aber SPF ist lückenhaft. "
-                                    "Echte E-Mails können ausserdem im Spam landen.")
+                                    "Ausserdem können Ihre echten E-Mails im Spam landen.")
         if self.hat("DMARC-PCT") or self.hat("DMARC-SP-NONE"):
             return Status.WARNUNG, "TEILWEISE. DMARC schützt nicht alle E-Mails oder Subdomains."
         if self.hat("DMARC-QUARANTINE"):
