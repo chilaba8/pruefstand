@@ -184,7 +184,7 @@ def test_shodan_heikle_dienste_und_kev(kev):
     assert befunde["SHODAN-FERNZUGRIFF"].status == Status.KRITISCH
     assert "3389" in befunde["SHODAN-FERNZUGRIFF"].detail
     assert "Fortinet" in befunde["SHODAN-KEV-RANSOMWARE"].detail
-    assert befunde["SHODAN-KEV"].status == Status.WARNUNG
+    assert befunde["SHODAN-KEV"].status == Status.KRITISCH
     assert befunde["SHODAN-CVE"].status == Status.HINWEIS
     # Microsoft-365-Mailserver und private IP wurden nicht bei Shodan abgefragt
     assert not any("52.101.0.1" in u or "10.0.0.5" in u for u in netz.abgerufen)

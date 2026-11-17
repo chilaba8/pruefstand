@@ -196,10 +196,11 @@ def pruefe(dns: Dns, domain: str, netz: Netz, kev_datei: Path | None = None) -> 
             "ausgenutzt " + ("wird" if len(kev_rw) == 1 else "werden") + " (CISA KEV).",
             kev_rw, "Sofort aktualisieren (Hersteller-Update). Danach prüfen, ob schon jemand eingedrungen ist.")
     if kev_sonst:
-        neu("SHODAN-KEV", Status.WARNUNG,
+        neu("SHODAN-KEV", Status.KRITISCH,
             f"{zahl(len(kev_sonst), 'Sicherheitslücke, die', 'Sicherheitslücken, die')} nachweislich angegriffen "
             + ("wird" if len(kev_sonst) == 1 else "werden") + " (CISA KEV).",
-            kev_sonst, "Zeitnah aktualisieren (Hersteller-Update) und bestätigen, dass die Version betroffen ist.")
+            kev_sonst, "Umgehend aktualisieren (Hersteller-Update) und bestätigen, dass die Version betroffen ist. "
+            "Bis dahin den Zugriff aus dem Internet einschränken.")
     if gruppen["unsicher"]:
         neu("SHODAN-UNSICHER", Status.WARNUNG,
             "Heikle oder unverschlüsselte Verwaltungsdienste sind aus dem Internet erreichbar.",

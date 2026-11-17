@@ -2,6 +2,11 @@
 
 Alle wichtigen Änderungen an pruefstand. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## Unveröffentlicht
+
+- SHODAN-KEV (aktiv ausgenutzte Sicherheitslücke laut CISA KEV) ist jetzt «Kritisch» statt
+  «Warnung»: Für diese Lücken gibt es nachweislich Angriffe.
+
 ## 1.6.1 – 2026-11-17
 
 - Sprache überarbeitet: richtige Einzahl/Mehrzahl statt «Domain(s)» («1 ähnliche Domain kann …»),
