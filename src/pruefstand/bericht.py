@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 
 from rich.console import Console
+from rich.markup import escape as e   # Fremddaten nie als rich-Markup auswerten
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -49,7 +50,7 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
     tabelle.add_column("Ergebnis")
     for b in erg.befunde:
         text, stil = AMPEL[b.status]
-        tabelle.add_row(Text(text, style=stil), b.pruefung, b.titel)
+        tabelle.add_row(Text(text, style=stil), Text(b.pruefung), Text(b.titel))
     c.print(tabelle)
     legende = ["[bold red]✖ Sofort handeln[/] – Betrugsgefahr oder Ihre E-Mails/Ihre Website fallen aus.",
                "[yellow]▲ Bald beheben[/] – Schutz lückenhaft oder nicht prüfbar.",
@@ -68,40 +69,40 @@ def terminal(erg: Ergebnis, console: Console | None = None) -> None:
         c.print("\n[bold]Was ist zu tun?[/bold]")
         for i, b in enumerate(offen, 1):
             text, stil = AMPEL[b.status]
-            c.print(f"\n[{stil}]{i}. {b.titel}[/{stil}]  [dim]({b.id})[/dim]")
+            c.print(f"\n[{stil}]{i}. {e(b.titel)}[/{stil}]  [dim]({e(b.id)})[/dim]")
             if b.detail:
                 # Breites Terminal: nicht umbrechen (DNS-Einträge bleiben am Stück kopierbar).
                 # Schmal (Handy): umbrechen, lange Einträge notfalls mitten im Wort.
                 c.print(Text(b.detail, style="dim", overflow="fold"), soft_wrap=c.width >= SCHMAL)
-            c.print(f"→ {b.empfehlung}")
+            c.print(f"→ {e(b.empfehlung)}")
             if b.anleitung:
-                c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {b.anleitung}")
-                c.print(f"[dim]Quelle: {b.quelle}[/dim]")
+                c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {e(b.anleitung)}")
+                c.print(f"[dim]Quelle: {e(b.quelle)}[/dim]")
     for b in tipps:
-        c.print(f"\n[green]Tipp:[/green] {b.empfehlung}  [dim]({b.id})[/dim]")
+        c.print(f"\n[green]Tipp:[/green] {e(b.empfehlung)}  [dim]({e(b.id)})[/dim]")
         if b.anleitung:
-            c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {b.anleitung}")
-            c.print(f"[dim]Quelle: {b.quelle}[/dim]")
+            c.print(f"[bold]So geht's bei Ihrem Anbieter:[/bold] {e(b.anleitung)}")
+            c.print(f"[dim]Quelle: {e(b.quelle)}[/dim]")
     c.print("\n[dim]Passiver Check: öffentliche DNS-Daten und ein normaler Aufruf der Webseite – "
             "kein Scan, kein Zugriff auf Ihre Systeme.[/dim]")
 
 
 def _aenderungen(c: Console, a) -> None:
     if a.leer:
-        c.print(f"[dim]Keine Änderungen seit der letzten Prüfung ({a.seit_datum}).[/dim]")
+        c.print(f"[dim]Keine Änderungen seit der letzten Prüfung ({e(str(a.seit_datum))}).[/dim]")
         return
-    c.print(f"[bold]Änderungen seit {a.seit_datum}:[/bold]")
+    c.print(f"[bold]Änderungen seit {e(str(a.seit_datum))}:[/bold]")
     if a.urteil_vorher != a.urteil_jetzt:
-        c.print(f"  Fälschungsschutz: {a.urteil_vorher} → [bold]{a.urteil_jetzt}[/bold]")
+        c.print(f"  Fälschungsschutz: {e(a.urteil_vorher)} → [bold]{e(a.urteil_jetzt)}[/bold]")
     for b in a.neu:
         text, stil = AMPEL[Status[b["status"]]]
-        c.print(f"  [{stil}]+ NEU[/{stil}]      {b['titel']}  [dim]({b['id']})[/dim]")
+        c.print(f"  [{stil}]+ NEU[/{stil}]      {e(b['titel'])}  [dim]({e(b['id'])})[/dim]")
     for b in a.behoben:
-        c.print(f"  [green]✔ BEHOBEN[/green]  {b['titel']}  [dim]({b['id']})[/dim]")
+        c.print(f"  [green]✔ BEHOBEN[/green]  {e(b['titel'])}  [dim]({e(b['id'])})[/dim]")
     for d in a.neue_aehnliche:
-        c.print(f"  [yellow]+ NEU registriert:[/yellow] {d}")
+        c.print(f"  [yellow]+ NEU registriert:[/yellow] {e(d)}")
     if a.nicht_verglichen:
-        c.print(f"  [dim]Nicht verglichen (nur einmal geprüft): {', '.join(a.nicht_verglichen)}[/dim]")
+        c.print(f"  [dim]Nicht verglichen (nur einmal geprüft): {e(', '.join(a.nicht_verglichen))}[/dim]")
 
 
 def als_json(erg: Ergebnis) -> str:
@@ -131,11 +132,11 @@ def mail_terminal(erg, console: Console | None = None) -> None:
     c.print(Panel(kopf, title=f"pruefstand {__version__} – E-Mail-Prüfung", border_style=farbe))
     for b in sorted(erg.befunde, key=lambda x: -x.status):
         text, stil = AMPEL[b.status]
-        c.print(f"[{stil}]{text:<11}[/{stil}] [bold]{b.pruefung}:[/bold] {b.titel}  [dim]({b.id})[/dim]")
+        c.print(f"[{stil}]{text:<11}[/{stil}] [bold]{e(b.pruefung)}:[/bold] {e(b.titel)}  [dim]({e(b.id)})[/dim]")
         if b.detail and b.status >= Status.HINWEIS:
             c.print(Text("            " + b.detail.replace("\n", "\n            "), style="dim"))
         if b.empfehlung and b.status >= Status.HINWEIS:
-            c.print(f"            → {b.empfehlung}")
+            c.print(f"            → {e(b.empfehlung)}")
     c.print("\n[dim]Lokal geprüft: Kein Link wurde geöffnet, kein Anhang ausgeführt.[/dim]")
 
 
@@ -158,16 +159,16 @@ def rua_terminal(aus, befunde, console: Console | None = None) -> None:
         t.add_column(spalte)
     for q in sorted(aus.quellen.values(), key=lambda x: -x.anzahl)[:30]:
         stil = "green" if q.quote == 1 else ("yellow" if q.quote > 0 or q.name else "red")
-        t.add_row(q.ip, q.name or q.ptr or "–", str(q.anzahl), Text(f"{q.quote:.0%}", style=stil),
+        t.add_row(Text(q.ip), Text(q.name or q.ptr or "–"), str(q.anzahl), Text(f"{q.quote:.0%}", style=stil),
                   str(q.spf_ok), str(q.dkim_ok))
     c.print(t)
     for b in befunde:
         text, stil = AMPEL[b.status]
-        c.print(f"\n[{stil}]{text}[/{stil}] [bold]{b.titel}[/bold]  [dim]({b.id})[/dim]")
+        c.print(f"\n[{stil}]{text}[/{stil}] [bold]{e(b.titel)}[/bold]  [dim]({e(b.id)})[/dim]")
         if b.detail:
             c.print(Text(b.detail, style="dim"))
         if b.empfehlung:
-            c.print(f"→ {b.empfehlung}")
+            c.print(f"→ {e(b.empfehlung)}")
     c.print("\n[dim]Lokal ausgewertet; nur die Namen der Server-IPs wurden per DNS nachgeschlagen.[/dim]")
 
 
@@ -189,16 +190,16 @@ def korrektur_terminal(korrekturen, console: Console | None = None) -> None:
         return
     c.print("\n[bold]Korrekturen zum Kopieren[/bold] [dim](Werte in <…> selbst ausfüllen)[/dim]")
     for k in korrekturen:
-        c.print(f"\n[bold cyan]■ {k.titel}[/bold cyan]  [dim]({k.befund_id})[/dim]")
+        c.print(f"\n[bold cyan]■ {e(k.titel)}[/bold cyan]  [dim]({e(k.befund_id)})[/dim]")
         for s in k.schritte:
-            c.print(f"  [bold]{s.titel}[/bold]")
+            c.print(f"  [bold]{e(s.titel)}[/bold]")
             if s.art in ("dns", "dns-loeschen"):
                 aktion = "[red]LÖSCHEN[/red] " if s.art == "dns-loeschen" else ""
-                c.print(f"    {aktion}{s.name}  [yellow]{s.typ}[/yellow]  ", end="")
+                c.print(f"    {aktion}{e(s.name)}  [yellow]{e(s.typ)}[/yellow]  ", end="")
                 c.print(Text(s.wert, style="green"))
             elif s.art in ("datei", "header"):
                 if s.name:
-                    c.print(f"    [dim]{s.name}[/dim]")
+                    c.print(f"    [dim]{e(s.name)}[/dim]")
                 c.print(Text("    " + s.wert.rstrip().replace("\n", "\n    "), style="green"))
             if s.hinweis:
-                c.print(f"    [dim]→ {s.hinweis}[/dim]")
+                c.print(f"    [dim]→ {e(s.hinweis)}[/dim]")

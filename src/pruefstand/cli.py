@@ -11,6 +11,7 @@ from datetime import date
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape   # Fremddaten nie als rich-Markup auswerten
 
 from pruefstand import (__version__, anleitungen, bericht, bericht_html, benachrichtigung,
                         dmarc_berichte, korrektur, liste, mailpruefung, normen, verlauf)
@@ -400,16 +401,16 @@ def _liste(dns: Dns, args, absender: Absender) -> int:
                 bericht_html.als_pdf(html, ordner / f"{e.domain}.pdf")
             status, satz = erg.faelschungsschutz
             text, stil = bericht.AMPEL[erg.schlimmster]
-            console.print(f"[{i}/{len(eintraege)}] {e.domain:<30} [{stil}]{text:<12}[/] {satz.split('.')[0]}")
+            console.print(f"[{i}/{len(eintraege)}] {escape(f'{e.domain:<30}')} [{stil}]{text:<12}[/] {escape(satz.split('.')[0])}")
         except (ValueError, DnsFehler, RuntimeError, OSError, subprocess.SubprocessError) as ex:
             zeile.fehler = str(ex)
-            console.print(f"[{i}/{len(eintraege)}] {e.domain:<30} [bold red]Fehler[/] {ex}")
+            console.print(f"[{i}/{len(eintraege)}] {escape(f'{e.domain:<30}')} [bold red]Fehler[/] {escape(str(ex))}")
         zeilen.append(zeile)
 
     mit_pdf = args.mit_pdf and all(z.fehler is None or "PDF" not in z.fehler for z in zeilen)
     (ordner / "uebersicht.html").write_text(liste.uebersicht_html(zeilen, mit_pdf, absender, args.sprache), encoding="utf-8")
     liste.schreibe_csv(zeilen, ordner / "uebersicht.csv")
-    console.print(f"\nÜbersicht: {ordner / 'uebersicht.html'}  ·  Excel: {ordner / 'uebersicht.csv'}")
+    console.print(f"\nÜbersicht: {escape(str(ordner / 'uebersicht.html'))}  ·  Excel: {escape(str(ordner / 'uebersicht.csv'))}")
 
     _melden(args, [z.ergebnis for z in zeilen if z.ergebnis])
     if any(z.fehler for z in zeilen):

@@ -2,6 +2,18 @@
 
 Alle wichtigen Änderungen an pruefstand. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## 1.6.3 – 2026-11-17
+
+Sicherheit (gefunden bei einer eigenen Prüfung des Codes):
+
+- Terminal: Texte von Webseiten, DNS und E-Mails werden nicht mehr als rich-Markup ausgewertet.
+  Vorher liess «[/]» im CMS-Namen einer Webseite oder im Namen eines E-Mail-Anhangs die Ausgabe
+  abstürzen (die Liste der Befunde fehlte), und «[link=…]» erzeugte einen anklickbaren Link zu
+  einer fremden Seite. HTML-/PDF-Bericht und lokale Oberfläche waren nicht betroffen.
+- Netz: keine Anfragen mehr an interne Adressen (127.0.0.1, private Netze, Cloud-Metadaten
+  169.254.169.254), weder direkt noch über Weiterleitungen; Weiterleitungen nur zu http/https.
+  Wichtig, wenn pruefstand auf einem Server läuft (SSRF).
+
 ## 1.6.2 – 2026-11-17
 
 - SHODAN-KEV (aktiv ausgenutzte Sicherheitslücke laut CISA KEV) ist jetzt «Kritisch» statt

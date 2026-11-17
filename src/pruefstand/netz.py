@@ -6,9 +6,11 @@ die Startseite, an /.well-known/security.txt und an die MTA-STS-Richtlinie. Kein
 
 from __future__ import annotations
 
+import ipaddress
 import socket
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -39,9 +41,39 @@ class Zertifikat:
     fehler: str | None = None                  # gesetzt, wenn die Prüfung des Zertifikats scheitert
 
 
+def pruefe_ziel(host: str | None) -> None:
+    """Nur öffentliche Adressen abrufen. Eine fremde Domain kann auf 127.0.0.1, das interne Netz
+    oder Cloud-Metadaten (169.254.169.254) zeigen oder dorthin weiterleiten (SSRF) – wichtig,
+    sobald pruefstand auf einem Server läuft. Rest-Risiko: DNS-Rebinding zwischen Prüfung und
+    Verbindung."""
+    if not host:
+        raise NetzFehler("Ungültiges Ziel (kein Hostname).")
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError) as e:
+        raise NetzFehler(f"{host}: {e}") from e
+    for info in infos:
+        ip = ipaddress.ip_address(str(info[4][0]).split("%", 1)[0])
+        if ip.version == 6 and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global:
+            raise NetzFehler(f"{host} zeigt auf eine interne Adresse ({ip}) – "
+                             "aus Sicherheitsgründen nicht abgerufen.")
+
+
 class _KeineWeiterleitung(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
+
+
+class _SichereWeiterleitung(urllib.request.HTTPRedirectHandler):
+    """Weiterleitungen nur zu http/https und nur zu öffentlichen Adressen."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        teile = urllib.parse.urlsplit(newurl)
+        if teile.scheme not in ("http", "https"):
+            raise NetzFehler(f"Weiterleitung auf {teile.scheme}:// nicht erlaubt: {newurl[:200]}")
+        pruefe_ziel(teile.hostname)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 class Netz:
@@ -49,8 +81,11 @@ class Netz:
         self.timeout = timeout
 
     def hole(self, url: str, weiterleiten: bool = True, max_bytes: int = MAX_BYTES) -> Antwort:
-        handler = [] if weiterleiten else [_KeineWeiterleitung()]
-        opener = urllib.request.build_opener(*handler)
+        teile = urllib.parse.urlsplit(url)
+        if teile.scheme not in ("http", "https"):
+            raise NetzFehler(f"Nur http/https erlaubt: {url[:200]}")
+        pruefe_ziel(teile.hostname)
+        opener = urllib.request.build_opener(_SichereWeiterleitung() if weiterleiten else _KeineWeiterleitung())
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
             with opener.open(req, timeout=self.timeout) as r:
@@ -64,6 +99,7 @@ class Netz:
 
     def zertifikat(self, host: str, port: int = 443) -> Zertifikat:
         ctx = ssl.create_default_context()
+        pruefe_ziel(host)
         try:
             with socket.create_connection((host, port), timeout=self.timeout) as sock:
                 with ctx.wrap_socket(sock, server_hostname=host) as tls:
@@ -87,6 +123,10 @@ class Netz:
             ctx.maximum_version = ssl.TLSVersion.TLSv1_1
             ctx.set_ciphers("ALL:@SECLEVEL=0")
         except (ValueError, ssl.SSLError):
+            return None
+        try:
+            pruefe_ziel(host)
+        except NetzFehler:
             return None
         try:
             with socket.create_connection((host, port), timeout=self.timeout) as sock:
