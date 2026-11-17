@@ -68,7 +68,8 @@ Der HTML/PDF-Bericht enthält die Korrekturen automatisch.
 Dazu: **Gesamtnote A–F**, **Vergleich mit allen .ch-Domains** (Icewolf Q3 2025), **Verlauf**
 (was ist seit der letzten Prüfung neu dazugekommen, was wurde behoben?) und **Normbezug** je Befund
 (nDSG Art. 8, IKT-Minimalstandard, ISO/IEC 27001:2022 – zur Orientierung, keine Rechtsberatung).
-Die Befund-IDs sind identisch mit [befundkatalog](https://github.com/chilaba8/befundkatalog).
+Die Befund-IDs entsprechen dem [befundkatalog](https://github.com/chilaba8/befundkatalog) – fertige Texte
+für Pentest- und Audit-Berichte auf Deutsch.
 
 ## Installation
 
